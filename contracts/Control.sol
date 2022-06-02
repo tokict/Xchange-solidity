@@ -3,8 +3,9 @@ pragma solidity ^0.8.9;
 
 import "../node_modules/hardhat/console.sol";
 import "./Types.sol";
+import "./Helpers.sol";
 
-contract Controller {
+contract Controller is Helpers {
     // askFee is applied to every submitted ASK as tax
     Fee public askFee;
     // bidFee is applied to every submitted BID as tax
@@ -30,13 +31,19 @@ contract Controller {
     address private escrowWallet;
 
     //Array or enabled resources to trade
-    Resource[1] internal resources;
+    Resource[] internal resources;
+
+    // Resource asks from sellers
+    ResourceAsk[] internal resourceAsks;
+
+    // Resource bids from buyers
+    ResourceBid[] internal resourceBids;
 
     // allowed sellers
-    mapping(address => bool) internal sellers;
+    address[] internal sellers;
 
     // allowed buyers
-    mapping(address => bool) internal buyers;
+    address[] internal buyers;
 
     // owner
     address private owner;
@@ -55,14 +62,14 @@ contract Controller {
 
         // Transfer from array to mapping
         for (uint256 i = 0; i < params.buyers.length; i++) {
-            buyers[params.buyers[i]] = true;
+            buyers.push(params.buyers[i]);
         }
         for (uint256 i = 0; i < params.sellers.length; i++) {
-            sellers[params.sellers[i]] = true;
+            sellers.push(params.sellers[i]);
         }
 
         for (uint256 i = 0; i < params.resources.length; i++) {
-            resources[i] = params.resources[i];
+            resources.push(params.resources[i]);
         }
 
         owner = msg.sender;
@@ -104,8 +111,13 @@ contract Controller {
         owner = newOwner;
     }
 
-    function test() external view onlyOwner returns (string memory) {
-        return resources[0].name;
+    function getResources()
+        external
+        view
+        onlyOwner
+        returns (Resource[] memory)
+    {
+        return resources;
     }
 
     function setEscrow(address newEscrow) external onlyOwner {
@@ -118,36 +130,118 @@ contract Controller {
 
     function addBuyer(address buyer) external onlyOwner {
         // If the buyer is not there or is there but is disabled, enable or add it
-        if (!buyers[buyer] || buyers[buyer] == false) {
-            buyers[buyer] = true;
+        (bool found, uint256 index) = arrayFindAddressIndex(buyer, buyers);
+        if (!found) {
+            buyers.push(buyer);
         } else {
-            revert("Buyer already allowed");
+            revert("Buyer already allowed!");
         }
     }
 
     function removeBuyer(address buyer) external onlyOwner {
-        if (buyers[buyer] && buyers[buyer] == true) {
-            buyers[buyer] = false;
+        (bool found, uint256 index) = arrayFindAddressIndex(buyer, buyers);
+        if (found) {
+            buyers[index] = buyers[buyers.length - 1];
+            buyers.pop();
         } else {
-            revert("Buyer already disabled or absent");
+            revert("Buyer disabled or absent");
         }
     }
 
+    function getBuyers() external view onlyOwner returns (address[] memory) {
+        return buyers;
+    }
+
     function addSeller(address seller) external onlyOwner {
-        // If the buyer is not there or is there but is disabled, enable or add it
-        if (!sellers[seller] || sellers[seller] == false) {
-            sellers[seller] = true;
+        // If the seller is not there or is there but is disabled, enable or add it
+        (bool found, uint256 index) = arrayFindAddressIndex(seller, sellers);
+        if (!found) {
+            sellers.push(seller);
         } else {
             revert("Seller already allowed");
         }
     }
 
     function removeSeller(address seller) external onlyOwner {
-        if (sellers[seller] && sellers[seller] == true) {
-            sellers[seller] = false;
+        (bool found, uint256 index) = arrayFindAddressIndex(seller, sellers);
+        if (found) {
+            sellers[index] = sellers[sellers.length - 1];
+            sellers.pop();
         } else {
             revert("Buyer already disabled or absent");
         }
+    }
+
+    function getSellers() external view onlyOwner returns (address[] memory) {
+        return sellers;
+    }
+
+    /**  The seller submits asks here.
+     * Must be within period
+     */
+    function submitAsk(
+        uint16 resourceId,
+        uint16 units,
+        uint16 purity,
+        uint256 askPPU
+    ) external {
+        require(purity < 1000, "Invalid purity");
+        require(units > 0, "Invalid units");
+        require(askPPU > 0, "Invalid ask PPU");
+        (bool found, uint256 index) = arrayFindResourceIndex(
+            resourceId,
+            resources
+        );
+        require(found, "Invalid resource");
+
+        resourceAsks.push(
+            ResourceAsk({
+                id: 1,
+                resourceId: resourceId,
+                asker: msg.sender,
+                units: units,
+                purity: purity,
+                askPPU: askPPU
+            })
+        );
+    }
+
+    function getAsks() external view returns (ResourceAsk[] memory) {
+        return resourceAsks;
+    }
+
+    /**  The buyer submits bids here.
+     * Must be within period
+     */
+    function submitBid(
+        uint16 resourceId,
+        uint16 units,
+        uint16 purity,
+        uint256 bidPPU
+    ) external {
+        require(purity < 1000, "Invalid purity");
+        require(units > 0, "Invalid units");
+        require(bidPPU > 0, "Invalid ask PPU");
+        (bool found, uint256 index) = arrayFindResourceIndex(
+            resourceId,
+            resources
+        );
+        require(found, "Invalid resource");
+
+        resourceBids.push(
+            ResourceBid({
+                id: 1,
+                resourceId: resourceId,
+                bidder: msg.sender,
+                units: units,
+                purity: purity,
+                bidPPU: bidPPU
+            })
+        );
+    }
+
+    function getBids() external view returns (ResourceBid[] memory) {
+        return resourceBids;
     }
 
     function sendToEscrow(uint256 amount) private {

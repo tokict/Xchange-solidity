@@ -6,7 +6,6 @@ import "hardhat-gas-reporter";
 import { HardhatUserConfig, task } from "hardhat/config";
 import "solidity-coverage";
 
-
 dotenv.config();
 
 // This is a sample Hardhat task. To learn how to create your own go to
@@ -43,7 +42,7 @@ const config: HardhatUserConfig = {
     enabled: process.env.REPORT_GAS !== undefined,
     currency: "USD",
     gasPriceApi:
-      "https://api.etherscan.io/api?module=proxy&action=eth_gasPrice",
+      "https://api.polygonscan.com/api?module=proxy&action=eth_gasPrice",
     coinmarketcap: "8f508a97-7ef5-4db1-ad02-fa8bebff1807",
   },
   etherscan: {

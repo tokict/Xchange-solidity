@@ -39,8 +39,8 @@ struct ResourceAsk {
     uint256 id;
     uint16 resourceId;
     address asker;
-    uint8 units;
-    uint8 purity;
+    uint16 units;
+    uint16 purity;
     uint256 askPPU;
 }
 
@@ -52,7 +52,8 @@ struct ResourceBid {
     uint256 id;
     address bidder;
     uint16 resourceId;
-    uint8 units;
+    uint16 units;
+    uint16 purity;
     uint256 bidPPU;
 }
 
