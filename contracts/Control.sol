@@ -30,48 +30,39 @@ contract Controller {
     address private escrowWallet;
 
     //Array or enabled resources to trade
-    Resource[] public resources;
+    Resource[1] internal resources;
 
     // allowed sellers
-    mapping(address => bool) private sellers;
+    mapping(address => bool) internal sellers;
 
     // allowed buyers
-    mapping(address => bool) private buyers;
+    mapping(address => bool) internal buyers;
 
     // owner
     address private owner;
 
-    constructor(
-        Fee memory _askFee,
-        Fee memory _bidFee,
-        Fee memory _marginFee,
-        uint8 _numberOfPeriodsPerDay,
-        uint8 _periodDurationInMinutes,
-        uint8 _periodsStartHour,
-        uint8 _periodsStartMinute,
-        address _treasuryWallet,
-        address _escrowWallet,
-        Resource[] memory _resources,
-        address[] memory _sellers,
-        address[] memory _buyers
-    ) {
+    constructor(ConstructorParams memory params) {
         console.log("Deploying Controller");
-        askFee = _askFee;
-        bidFee = _bidFee;
-        marginFee = _marginFee;
-        numberOfPeriodsPerDay = _numberOfPeriodsPerDay;
-        periodDurationInMinutes = _periodDurationInMinutes;
-        periodsStartHour = _periodsStartHour;
-        periodsStartMinute = _periodsStartMinute;
-        treasuryWallet = _treasuryWallet;
-        escrowWallet = _escrowWallet;
-        resources = _resources;
+        askFee = params.askFee;
+        bidFee = params.bidFee;
+        marginFee = params.marginFee;
+        numberOfPeriodsPerDay = params.numberOfPeriodsPerDay;
+        periodDurationInMinutes = params.periodDurationInMinutes;
+        periodsStartHour = params.periodsStartHour;
+        periodsStartMinute = params.periodsStartMinute;
+        treasuryWallet = params.treasuryWallet;
+        escrowWallet = params.escrowWallet;
+
         // Transfer from array to mapping
-        for (uint256 i = 0; i < _buyers.length; i++) {
-            buyers[_buyers[i]] = true;
+        for (uint256 i = 0; i < params.buyers.length; i++) {
+            buyers[params.buyers[i]] = true;
         }
-        for (uint256 i = 0; i < _sellers.length; i++) {
-            sellers[_sellers[i]] = true;
+        for (uint256 i = 0; i < params.sellers.length; i++) {
+            sellers[params.sellers[i]] = true;
+        }
+
+        for (uint256 i = 0; i < params.resources.length; i++) {
+            resources[i] = params.resources[i];
         }
 
         owner = msg.sender;
@@ -111,6 +102,10 @@ contract Controller {
 
     function setOwner(address newOwner) external onlyOwner {
         owner = newOwner;
+    }
+
+    function test() external view onlyOwner returns (string memory) {
+        return resources[0].name;
     }
 
     function setEscrow(address newEscrow) external onlyOwner {

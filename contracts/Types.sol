@@ -1,6 +1,20 @@
 //SPDX-License-Identifier: WTFPL
 pragma solidity ^0.8.9;
 
+struct ConstructorParams {
+    Fee askFee;
+    Fee bidFee;
+    Fee marginFee;
+    uint8 numberOfPeriodsPerDay;
+    uint8 periodDurationInMinutes;
+    uint8 periodsStartHour;
+    uint8 periodsStartMinute;
+    address treasuryWallet;
+    address escrowWallet;
+    Resource[] resources;
+    address[] sellers;
+    address[] buyers;
+}
 /*
  * This is the basic resource
  */
@@ -9,14 +23,13 @@ struct Resource {
     string name;
     string symbol;
     string measurementUnit;
-    uint256 feeId;
 }
 
 struct Period {
-    uint256 id;
-    uint256 from;
+    uint16 id;
+    uint16 from;
     bool closed;
-    uint256 to;
+    uint16 to;
 }
 /*
  * This is the resource for sale from one user
@@ -24,7 +37,7 @@ struct Period {
  */
 struct ResourceAsk {
     uint256 id;
-    uint256 resourceId;
+    uint16 resourceId;
     address asker;
     uint8 units;
     uint8 purity;
@@ -38,7 +51,7 @@ struct ResourceAsk {
 struct ResourceBid {
     uint256 id;
     address bidder;
-    uint256 resourceId;
+    uint16 resourceId;
     uint8 units;
     uint256 bidPPU;
 }
@@ -51,8 +64,8 @@ struct PeriodInputs {
 // We calculate the median price based on all period bids and asks
 struct PriceCalculation {
     uint256 id;
-    uint256 periodId;
-    uint256 resourceId;
+    uint16 periodId;
+    uint16 resourceId;
     uint256 PPU;
 }
 
@@ -60,21 +73,21 @@ struct PriceCalculation {
 struct BuyerAgreement {
     uint256 bidId;
     uint256 priceCalculationId;
-    uint256 units;
-    uint256 time;
+    uint16 units;
+    uint16 time;
 }
 
 // After presenting median price, the seller agrees to the price
 struct SellerAgreement {
     uint256 askId;
     uint256 priceCalculationId;
-    uint256 time;
+    uint16 time;
 }
 
 // This is what we generate when we get payment. We should not have any ghost incoming payments in the system
 struct IncomingTradePayment {
-    uint256 id;
-    uint256 transactionTime;
+    uint16 id;
+    uint16 transactionTime;
     address buyer;
     uint256 ethTransferred;
     uint256 agreementId;
@@ -85,7 +98,7 @@ struct IncomingTradePayment {
 // This is what we generate when we get payment. We should not have any ghost incoming payments in the system
 struct BidMarginPayment {
     uint256 id;
-    uint256 transactionTime;
+    uint16 transactionTime;
     address buyer;
     uint256 ethTransferred;
     uint256 bidId;
@@ -94,10 +107,10 @@ struct BidMarginPayment {
 
 // This is what we generate when we release payment
 struct OutgoingPayment {
-    uint256 id;
-    uint256 incomingPaymentId;
+    uint16 id;
+    uint16 incomingPaymentId;
     address user;
-    uint256 transactionTime;
+    uint16 transactionTime;
     uint256 ethTransferred;
     uint8[] appliedFees;
     uint256 feeAmount;
@@ -105,23 +118,18 @@ struct OutgoingPayment {
     bool isMargin;
 }
 
-enum FeeType {
-    ASK,
-    BID
-}
-
 // All fees including margin
 struct Fee {
     uint256 id;
-    uint256 percentage;
-    uint256 amount;
-    FeeType feeType;
+    uint8 percentage;
+    uint16 amount;
+    string feeType;
     bool cumulative;
     string[] noCombine;
 }
 
 // All fees including margin
 struct MarginFee {
-    uint256 id;
-    uint256 percentage;
+    uint16 id;
+    uint8 percentage;
 }
