@@ -31,9 +31,9 @@ contract Controller is Helpers {
 
     // Treasury wallet is to keep collected fees and generally, profit.
     // We don't want to keep ANY funds in the contract in case of hack of my screwup
-    address private treasuryWallet;
+    address payable internal treasuryWallet;
     // We keep our clients money in a separate escrow wallet. To send money to sellers, we call a function on contract and the contract proxies it
-    address private escrowWallet;
+    address payable internal escrowWallet;
 
     //Array or enabled resources to trade
     Resource[] internal resources;
@@ -138,11 +138,11 @@ contract Controller is Helpers {
         return resources;
     }
 
-    function setEscrow(address newEscrow) external onlyOwner {
+    function setEscrow(address payable newEscrow) external onlyOwner {
         escrowWallet = newEscrow;
     }
 
-    function setTreasury(address newTreasury) external onlyOwner {
+    function setTreasury(address payable newTreasury) external onlyOwner {
         treasuryWallet = newTreasury;
     }
 
@@ -247,9 +247,11 @@ contract Controller is Helpers {
                 )
             );
         }
-        console.log(feeAmount);
+
         require(msg.value >= feeAmount, "Not enough ETH sent for fees");
-        sendToTreasury(feeAmount); // Breaks if failed
+        if (feeAmount > 0) {
+            sendToTreasury(feeAmount); // Breaks if failed
+        }
         resourceAsks[0].push(ask);
     }
 
@@ -265,7 +267,7 @@ contract Controller is Helpers {
     /**
      *We default to 0 index fee as the default one
      */
-    function pickMarginFee(ResourceBid memory bid)
+    function pickMarginFee(uint16 resourceId, uint256 amount)
         public
         view
         returns (MarginFee memory)
@@ -310,29 +312,32 @@ contract Controller is Helpers {
         }
 
         uint256 feeAmount = 0;
-        MarginFee memory marginFee = pickMarginFee(bid);
+        MarginFee memory marginFee = pickMarginFee(bid.id, bid.bidPPU);
         bid.marginFeeId = marginFee.id;
         uint256 marginAmount = calculatePercentage(
             bid.bidPPU.mul(bid.units),
             marginFee.percentage
         );
         for (uint8 i = 0; i < bid.appliedFeeIds.length; i++) {
-            feeAmount.add(pickedFees[i].amount);
-            feeAmount.add(
+            feeAmount = feeAmount.add(pickedFees[i].amount);
+            feeAmount = feeAmount.add(
                 calculatePercentage(
                     bid.bidPPU.mul(bid.units),
                     pickedFees[i].percentage
                 )
             );
         }
+
         // We now have all fees calculated. Lets see if there is enough money and transfer it to treasury
         require(
             msg.value >= feeAmount.add(marginAmount),
             "Not enough ETH sent for fees"
         );
-        sendToTreasury(feeAmount); // Breaks if failed
-        sendToEscrow(feeAmount); // Breaks if failed
 
+        if (feeAmount > 0) {
+            sendToTreasury(feeAmount); // Breaks if failed
+            sendToEscrow(marginAmount); // Breaks if failed
+        }
         resourceBids[0].push(bid);
     }
 
@@ -345,14 +350,12 @@ contract Controller is Helpers {
         return bids;
     }
 
-    function sendToEscrow(uint256 amount) private {
-        (bool sent, bytes memory data) = escrowWallet.call{value: amount}("");
-        require(sent, "Failed to send ether");
+    function sendToEscrow(uint256 amount) public payable {
+        escrowWallet.transfer(amount);
     }
 
-    function sendToTreasury(uint256 amount) private {
-        (bool sent, bytes memory data) = treasuryWallet.call{value: amount}("");
-        require(sent, "Failed to send ether");
+    function sendToTreasury(uint256 amount) public payable {
+        treasuryWallet.transfer(amount);
     }
 
     function sendToSeller(

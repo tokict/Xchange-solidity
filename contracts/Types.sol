@@ -9,8 +9,8 @@ struct ConstructorParams {
     uint8 periodDurationInMinutes;
     uint8 periodsStartHour;
     uint8 periodsStartMinute;
-    address treasuryWallet;
-    address escrowWallet;
+    address payable treasuryWallet;
+    address payable escrowWallet;
     Resource[] resources;
     address[] sellers;
     address[] buyers;
@@ -19,7 +19,7 @@ struct ConstructorParams {
  * This is the basic resource
  */
 struct Resource {
-    uint256 id;
+    uint16 id;
     string name;
     string symbol;
     string measurementUnit;
@@ -36,7 +36,7 @@ struct Period {
  * 1 to many
  */
 struct ResourceAsk {
-    uint256 id;
+    uint16 id;
     uint16 resourceId;
     address asker;
     uint16 units;
@@ -50,7 +50,7 @@ struct ResourceAsk {
  * 1 to many
  */
 struct ResourceBid {
-    uint256 id;
+    uint16 id;
     address bidder;
     uint16 resourceId;
     uint16 units;
