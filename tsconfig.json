@@ -4,7 +4,7 @@
     "module": "commonjs",
     "strict": true,
     "esModuleInterop": true,
-    "paths": {"@types":[ "./typechain-types/Controller.ts"]},
+    "paths": { "@types": ["./typechain-types/Controller.ts"] },
     "outDir": "dist",
     "declaration": true
   },

@@ -2,5 +2,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { Controller } from "./Controller";
+export type { Helpers } from "./Helpers";
 export * as factories from "./factories";
 export { Controller__factory } from "./factories/Controller__factory";
+export { Helpers__factory } from "./factories/Helpers__factory";

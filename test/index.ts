@@ -1,5 +1,6 @@
 import {
   ConstructorParamsStruct,
+  FeeStruct,
   ResourceAskStruct,
   ResourceBidStruct,
   ResourceStruct,
@@ -7,6 +8,7 @@ import {
 import { expect } from "chai";
 import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
+
 enum FeeType {
   "ASK",
   "BID",
@@ -16,30 +18,32 @@ async function setup() {
   const [owner, seller1, seller2, buyer1, buyer2, treasury, escrow] =
     await ethers.getSigners();
   const contractParams: ConstructorParamsStruct = {
-    askFee: {
-      id: 1,
-      percentage: 10,
-      amount: 0,
-      feeType: "ask",
-      cumulative: true,
-      noCombine: [],
-    },
-    bidFee: {
-      id: 1,
-      percentage: 10,
-      amount: 0,
-      feeType: "bid",
-      cumulative: true,
-      noCombine: [],
-    },
-    marginFee: {
-      id: 1,
-      percentage: 10,
-      amount: 0,
-      feeType: "margin",
-      cumulative: true,
-      noCombine: [],
-    },
+    askFees: [
+      {
+        id: 1,
+        percentage: 100, // = 0.01%
+        amount: ethers.utils.parseEther("0.01"),
+        feeType: "ask",
+        cumulative: true,
+        noCombine: [],
+      },
+    ],
+    bidFees: [
+      {
+        id: 1,
+        percentage: 100,
+        amount: ethers.utils.parseEther("0.01"),
+        feeType: "bid",
+        cumulative: true,
+        noCombine: [],
+      },
+    ],
+    marginFees: [
+      {
+        id: 1,
+        percentage: 100,
+      },
+    ],
     numberOfPeriodsPerDay: 2,
     periodDurationInMinutes: 0,
     periodsStartHour: 10,
@@ -113,44 +117,51 @@ describe("Controller", async function () {
     expect(sellersRemoved).to.have.lengthOf(1);
   });
 
+  // it("Should set up intervals properly", async function () {
+  //   const { controller, buyer2, seller2 } = await setup();
+  // });
+
   it("Should allow seller to submit an ASK during interval, apply proper fees", async function () {
     const { controller, seller1 } = await setup();
     const connected = controller.connect(seller1);
 
-    await connected.submitAsk(1, 100, 950, ethers.utils.parseEther("0.1"));
+    const fees: FeeStruct[] = await controller.pickFees(true);
+    expect(fees).to.have.lengthOf(1);
+    const units = 111;
+    const askPPU = ethers.utils.parseEther("0.1");
+    const percentageFee = askPPU.mul(units).mul(fees[0].percentage).div(10000);
 
-    const asks: ResourceAskStruct[] = await connected.getAsks();
+    await connected.submitAsk(1, units, 950, askPPU, {
+      value: percentageFee.add(fees[0].amount),
+    });
 
-    expect(asks[0]).to.have.property("units", 100);
+    const asks: ResourceAskStruct[] = await connected.getAsks(0);
+
+    expect(asks[0]).to.have.property("units", units);
     expect(asks[0]).to.have.property("purity", 950);
     expect(asks[0]).to.have.property("resourceId", 1);
     expect(asks[0]).to.have.property("asker", seller1.address.toString());
-    expect(BigNumber.from(asks[0].askPPU)).to.be.equal(
-      ethers.utils.parseEther("0.1")
-    );
+    expect(BigNumber.from(asks[0].askPPU)).to.be.equal(askPPU);
   });
 
   it("Should allow buyer to submit a BID during interval, apply proper fees", async function () {
     const { controller, buyer1 } = await setup();
     const connected = controller.connect(buyer1);
+    const units = 90;
+    const bidPPU = ethers.utils.parseEther("0.11");
+    const fees: FeeStruct[] = await controller.pickFees(true);
 
-    await connected.submitBid(1, 90, 850, ethers.utils.parseEther("0.11"));
+    const percentageFee = bidPPU.mul(units).mul(fees[0].percentage).div(10000);
+    await connected.submitBid(1, units, 850, bidPPU, {
+      value: percentageFee.add(fees[0].amount),
+    });
 
-    const bids: ResourceBidStruct[] = await connected.getBids();
+    const bids: ResourceBidStruct[] = await connected.getBids(0);
 
-    expect(bids[0]).to.have.property("units", 90);
+    expect(bids[0]).to.have.property("units", units);
     expect(bids[0]).to.have.property("purity", 850);
     expect(bids[0]).to.have.property("resourceId", 1);
     expect(bids[0]).to.have.property("bidder", buyer1.address.toString());
-    expect(BigNumber.from(bids[0].bidPPU)).to.be.equal(
-      ethers.utils.parseEther("0.11")
-    );
+    expect(BigNumber.from(bids[0].bidPPU)).to.be.equal(bidPPU);
   });
-  // it("Should allow buyer to submit a BID during interval, apply proper fees and margin", async function () {
-  //   const { controller, buyer2, seller2 } = await setup();
-  // });
-
-  // it("Should start trading session and calculate average price", async function () {
-  //   const { controller, buyer2, seller2 } = await setup();
-  // });
 });

@@ -2,9 +2,9 @@
 pragma solidity ^0.8.9;
 
 struct ConstructorParams {
-    Fee askFee;
-    Fee bidFee;
-    Fee marginFee;
+    Fee[] askFees;
+    Fee[] bidFees;
+    MarginFee[] marginFees;
     uint8 numberOfPeriodsPerDay;
     uint8 periodDurationInMinutes;
     uint8 periodsStartHour;
@@ -42,6 +42,7 @@ struct ResourceAsk {
     uint16 units;
     uint16 purity;
     uint256 askPPU;
+    uint16[] appliedFeeIds;
 }
 
 /*
@@ -55,11 +56,13 @@ struct ResourceBid {
     uint16 units;
     uint16 purity;
     uint256 bidPPU;
+    uint16[] appliedFeeIds;
+    uint16 marginFeeId;
 }
 
 struct PeriodInputs {
-    ResourceAsk[] asks;
-    ResourceBid[] bids;
+    uint16[] asks;
+    uint16[] bids;
 }
 
 // We calculate the median price based on all period bids and asks
@@ -96,16 +99,6 @@ struct IncomingTradePayment {
     uint256 feeAmount;
 }
 
-// This is what we generate when we get payment. We should not have any ghost incoming payments in the system
-struct BidMarginPayment {
-    uint256 id;
-    uint16 transactionTime;
-    address buyer;
-    uint256 ethTransferred;
-    uint256 bidId;
-    bool active;
-}
-
 // This is what we generate when we release payment
 struct OutgoingPayment {
     uint16 id;
@@ -121,9 +114,9 @@ struct OutgoingPayment {
 
 // All fees including margin
 struct Fee {
-    uint256 id;
-    uint8 percentage;
-    uint16 amount;
+    uint16 id;
+    uint16 percentage;
+    uint256 amount;
     string feeType;
     bool cumulative;
     string[] noCombine;

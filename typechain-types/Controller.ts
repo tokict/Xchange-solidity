@@ -9,6 +9,7 @@ import type {
   CallOverrides,
   ContractTransaction,
   Overrides,
+  PayableOverrides,
   PopulatedTransaction,
   Signer,
   utils,
@@ -32,19 +33,26 @@ export type FeeStruct = {
 };
 
 export type FeeStructOutput = [
+  number,
+  number,
   BigNumber,
-  number,
-  number,
   string,
   boolean,
   string[]
 ] & {
-  id: BigNumber;
+  id: number;
   percentage: number;
-  amount: number;
+  amount: BigNumber;
   feeType: string;
   cumulative: boolean;
   noCombine: string[];
+};
+
+export type MarginFeeStruct = { id: BigNumberish; percentage: BigNumberish };
+
+export type MarginFeeStructOutput = [number, number] & {
+  id: number;
+  percentage: number;
 };
 
 export type ResourceStruct = {
@@ -62,9 +70,9 @@ export type ResourceStructOutput = [BigNumber, string, string, string] & {
 };
 
 export type ConstructorParamsStruct = {
-  askFee: FeeStruct;
-  bidFee: FeeStruct;
-  marginFee: FeeStruct;
+  askFees: FeeStruct[];
+  bidFees: FeeStruct[];
+  marginFees: MarginFeeStruct[];
   numberOfPeriodsPerDay: BigNumberish;
   periodDurationInMinutes: BigNumberish;
   periodsStartHour: BigNumberish;
@@ -77,9 +85,9 @@ export type ConstructorParamsStruct = {
 };
 
 export type ConstructorParamsStructOutput = [
-  FeeStructOutput,
-  FeeStructOutput,
-  FeeStructOutput,
+  FeeStructOutput[],
+  FeeStructOutput[],
+  MarginFeeStructOutput[],
   number,
   number,
   number,
@@ -90,9 +98,9 @@ export type ConstructorParamsStructOutput = [
   string[],
   string[]
 ] & {
-  askFee: FeeStructOutput;
-  bidFee: FeeStructOutput;
-  marginFee: FeeStructOutput;
+  askFees: FeeStructOutput[];
+  bidFees: FeeStructOutput[];
+  marginFees: MarginFeeStructOutput[];
   numberOfPeriodsPerDay: number;
   periodDurationInMinutes: number;
   periodsStartHour: number;
@@ -111,6 +119,7 @@ export type ResourceAskStruct = {
   units: BigNumberish;
   purity: BigNumberish;
   askPPU: BigNumberish;
+  appliedFeeIds: BigNumberish[];
 };
 
 export type ResourceAskStructOutput = [
@@ -119,7 +128,8 @@ export type ResourceAskStructOutput = [
   string,
   number,
   number,
-  BigNumber
+  BigNumber,
+  number[]
 ] & {
   id: BigNumber;
   resourceId: number;
@@ -127,6 +137,7 @@ export type ResourceAskStructOutput = [
   units: number;
   purity: number;
   askPPU: BigNumber;
+  appliedFeeIds: number[];
 };
 
 export type ResourceBidStruct = {
@@ -136,6 +147,8 @@ export type ResourceBidStruct = {
   units: BigNumberish;
   purity: BigNumberish;
   bidPPU: BigNumberish;
+  appliedFeeIds: BigNumberish[];
+  marginFeeId: BigNumberish;
 };
 
 export type ResourceBidStructOutput = [
@@ -144,7 +157,9 @@ export type ResourceBidStructOutput = [
   number,
   number,
   number,
-  BigNumber
+  BigNumber,
+  number[],
+  number
 ] & {
   id: BigNumber;
   bidder: string;
@@ -152,26 +167,33 @@ export type ResourceBidStructOutput = [
   units: number;
   purity: number;
   bidPPU: BigNumber;
+  appliedFeeIds: number[];
+  marginFeeId: number;
 };
 
 export interface ControllerInterface extends utils.Interface {
   functions: {
     "addBuyer(address)": FunctionFragment;
     "addSeller(address)": FunctionFragment;
-    "askFee()": FunctionFragment;
-    "bidFee()": FunctionFragment;
-    "getAsks()": FunctionFragment;
-    "getBids()": FunctionFragment;
+    "askFees(uint256)": FunctionFragment;
+    "bidFees(uint256)": FunctionFragment;
+    "calculatePercentage(uint256,uint16)": FunctionFragment;
+    "getAsks(uint16)": FunctionFragment;
+    "getBids(uint16)": FunctionFragment;
     "getBuyers()": FunctionFragment;
     "getResources()": FunctionFragment;
     "getSellers()": FunctionFragment;
-    "marginFee()": FunctionFragment;
+    "lastPeriodId()": FunctionFragment;
+    "marginFees(uint256)": FunctionFragment;
     "numberOfPeriodsPerDay()": FunctionFragment;
     "periodDurationInMinutes()": FunctionFragment;
     "periodsStartHour()": FunctionFragment;
     "periodsStartMinute()": FunctionFragment;
+    "pickFees(bool)": FunctionFragment;
+    "pickMarginFee((uint256,address,uint16,uint16,uint16,uint256,uint16[],uint16))": FunctionFragment;
     "removeBuyer(address)": FunctionFragment;
     "removeSeller(address)": FunctionFragment;
+    "resourceAsks(uint16,uint256)": FunctionFragment;
     "setEscrow(address)": FunctionFragment;
     "setOwner(address)": FunctionFragment;
     "setTreasury(address)": FunctionFragment;
@@ -183,20 +205,25 @@ export interface ControllerInterface extends utils.Interface {
     nameOrSignatureOrTopic:
       | "addBuyer"
       | "addSeller"
-      | "askFee"
-      | "bidFee"
+      | "askFees"
+      | "bidFees"
+      | "calculatePercentage"
       | "getAsks"
       | "getBids"
       | "getBuyers"
       | "getResources"
       | "getSellers"
-      | "marginFee"
+      | "lastPeriodId"
+      | "marginFees"
       | "numberOfPeriodsPerDay"
       | "periodDurationInMinutes"
       | "periodsStartHour"
       | "periodsStartMinute"
+      | "pickFees"
+      | "pickMarginFee"
       | "removeBuyer"
       | "removeSeller"
+      | "resourceAsks"
       | "setEscrow"
       | "setOwner"
       | "setTreasury"
@@ -206,10 +233,26 @@ export interface ControllerInterface extends utils.Interface {
 
   encodeFunctionData(functionFragment: "addBuyer", values: [string]): string;
   encodeFunctionData(functionFragment: "addSeller", values: [string]): string;
-  encodeFunctionData(functionFragment: "askFee", values?: undefined): string;
-  encodeFunctionData(functionFragment: "bidFee", values?: undefined): string;
-  encodeFunctionData(functionFragment: "getAsks", values?: undefined): string;
-  encodeFunctionData(functionFragment: "getBids", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "askFees",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "bidFees",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "calculatePercentage",
+    values: [BigNumberish, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getAsks",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getBids",
+    values: [BigNumberish]
+  ): string;
   encodeFunctionData(functionFragment: "getBuyers", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "getResources",
@@ -219,7 +262,14 @@ export interface ControllerInterface extends utils.Interface {
     functionFragment: "getSellers",
     values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "marginFee", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "lastPeriodId",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "marginFees",
+    values: [BigNumberish]
+  ): string;
   encodeFunctionData(
     functionFragment: "numberOfPeriodsPerDay",
     values?: undefined
@@ -236,10 +286,19 @@ export interface ControllerInterface extends utils.Interface {
     functionFragment: "periodsStartMinute",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "pickFees", values: [boolean]): string;
+  encodeFunctionData(
+    functionFragment: "pickMarginFee",
+    values: [ResourceBidStruct]
+  ): string;
   encodeFunctionData(functionFragment: "removeBuyer", values: [string]): string;
   encodeFunctionData(
     functionFragment: "removeSeller",
     values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "resourceAsks",
+    values: [BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "setEscrow", values: [string]): string;
   encodeFunctionData(functionFragment: "setOwner", values: [string]): string;
@@ -255,8 +314,12 @@ export interface ControllerInterface extends utils.Interface {
 
   decodeFunctionResult(functionFragment: "addBuyer", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "addSeller", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "askFee", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "bidFee", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "askFees", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "bidFees", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "calculatePercentage",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "getAsks", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "getBids", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "getBuyers", data: BytesLike): Result;
@@ -265,7 +328,11 @@ export interface ControllerInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "getSellers", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "marginFee", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "lastPeriodId",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "marginFees", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "numberOfPeriodsPerDay",
     data: BytesLike
@@ -282,12 +349,21 @@ export interface ControllerInterface extends utils.Interface {
     functionFragment: "periodsStartMinute",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "pickFees", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "pickMarginFee",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "removeBuyer",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
     functionFragment: "removeSeller",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "resourceAsks",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "setEscrow", data: BytesLike): Result;
@@ -339,33 +415,47 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    askFee(
+    askFees(
+      arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<
-      [BigNumber, number, number, string, boolean] & {
-        id: BigNumber;
+      [number, number, BigNumber, string, boolean] & {
+        id: number;
         percentage: number;
-        amount: number;
+        amount: BigNumber;
         feeType: string;
         cumulative: boolean;
       }
     >;
 
-    bidFee(
+    bidFees(
+      arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<
-      [BigNumber, number, number, string, boolean] & {
-        id: BigNumber;
+      [number, number, BigNumber, string, boolean] & {
+        id: number;
         percentage: number;
-        amount: number;
+        amount: BigNumber;
         feeType: string;
         cumulative: boolean;
       }
     >;
 
-    getAsks(overrides?: CallOverrides): Promise<[ResourceAskStructOutput[]]>;
+    calculatePercentage(
+      theNumber: BigNumberish,
+      percentage: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<[BigNumber]>;
 
-    getBids(overrides?: CallOverrides): Promise<[ResourceBidStructOutput[]]>;
+    getAsks(
+      periodId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<[ResourceAskStructOutput[]]>;
+
+    getBids(
+      periodId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<[ResourceBidStructOutput[]]>;
 
     getBuyers(overrides?: CallOverrides): Promise<[string[]]>;
 
@@ -373,17 +463,12 @@ export interface Controller extends BaseContract {
 
     getSellers(overrides?: CallOverrides): Promise<[string[]]>;
 
-    marginFee(
+    lastPeriodId(overrides?: CallOverrides): Promise<[number]>;
+
+    marginFees(
+      arg0: BigNumberish,
       overrides?: CallOverrides
-    ): Promise<
-      [BigNumber, number, number, string, boolean] & {
-        id: BigNumber;
-        percentage: number;
-        amount: number;
-        feeType: string;
-        cumulative: boolean;
-      }
-    >;
+    ): Promise<[number, number] & { id: number; percentage: number }>;
 
     numberOfPeriodsPerDay(overrides?: CallOverrides): Promise<[number]>;
 
@@ -392,6 +477,16 @@ export interface Controller extends BaseContract {
     periodsStartHour(overrides?: CallOverrides): Promise<[number]>;
 
     periodsStartMinute(overrides?: CallOverrides): Promise<[number]>;
+
+    pickFees(
+      isAsk: boolean,
+      overrides?: CallOverrides
+    ): Promise<[FeeStructOutput[]]>;
+
+    pickMarginFee(
+      bid: ResourceBidStruct,
+      overrides?: CallOverrides
+    ): Promise<[MarginFeeStructOutput]>;
 
     removeBuyer(
       buyer: string,
@@ -402,6 +497,21 @@ export interface Controller extends BaseContract {
       seller: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
+
+    resourceAsks(
+      arg0: BigNumberish,
+      arg1: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<
+      [BigNumber, number, string, number, number, BigNumber] & {
+        id: BigNumber;
+        resourceId: number;
+        asker: string;
+        units: number;
+        purity: number;
+        askPPU: BigNumber;
+      }
+    >;
 
     setEscrow(
       newEscrow: string,
@@ -423,7 +533,7 @@ export interface Controller extends BaseContract {
       units: BigNumberish,
       purity: BigNumberish,
       askPPU: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
     submitBid(
@@ -431,7 +541,7 @@ export interface Controller extends BaseContract {
       units: BigNumberish,
       purity: BigNumberish,
       bidPPU: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
   };
 
@@ -445,33 +555,47 @@ export interface Controller extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  askFee(
+  askFees(
+    arg0: BigNumberish,
     overrides?: CallOverrides
   ): Promise<
-    [BigNumber, number, number, string, boolean] & {
-      id: BigNumber;
+    [number, number, BigNumber, string, boolean] & {
+      id: number;
       percentage: number;
-      amount: number;
+      amount: BigNumber;
       feeType: string;
       cumulative: boolean;
     }
   >;
 
-  bidFee(
+  bidFees(
+    arg0: BigNumberish,
     overrides?: CallOverrides
   ): Promise<
-    [BigNumber, number, number, string, boolean] & {
-      id: BigNumber;
+    [number, number, BigNumber, string, boolean] & {
+      id: number;
       percentage: number;
-      amount: number;
+      amount: BigNumber;
       feeType: string;
       cumulative: boolean;
     }
   >;
 
-  getAsks(overrides?: CallOverrides): Promise<ResourceAskStructOutput[]>;
+  calculatePercentage(
+    theNumber: BigNumberish,
+    percentage: BigNumberish,
+    overrides?: CallOverrides
+  ): Promise<BigNumber>;
 
-  getBids(overrides?: CallOverrides): Promise<ResourceBidStructOutput[]>;
+  getAsks(
+    periodId: BigNumberish,
+    overrides?: CallOverrides
+  ): Promise<ResourceAskStructOutput[]>;
+
+  getBids(
+    periodId: BigNumberish,
+    overrides?: CallOverrides
+  ): Promise<ResourceBidStructOutput[]>;
 
   getBuyers(overrides?: CallOverrides): Promise<string[]>;
 
@@ -479,17 +603,12 @@ export interface Controller extends BaseContract {
 
   getSellers(overrides?: CallOverrides): Promise<string[]>;
 
-  marginFee(
+  lastPeriodId(overrides?: CallOverrides): Promise<number>;
+
+  marginFees(
+    arg0: BigNumberish,
     overrides?: CallOverrides
-  ): Promise<
-    [BigNumber, number, number, string, boolean] & {
-      id: BigNumber;
-      percentage: number;
-      amount: number;
-      feeType: string;
-      cumulative: boolean;
-    }
-  >;
+  ): Promise<[number, number] & { id: number; percentage: number }>;
 
   numberOfPeriodsPerDay(overrides?: CallOverrides): Promise<number>;
 
@@ -498,6 +617,16 @@ export interface Controller extends BaseContract {
   periodsStartHour(overrides?: CallOverrides): Promise<number>;
 
   periodsStartMinute(overrides?: CallOverrides): Promise<number>;
+
+  pickFees(
+    isAsk: boolean,
+    overrides?: CallOverrides
+  ): Promise<FeeStructOutput[]>;
+
+  pickMarginFee(
+    bid: ResourceBidStruct,
+    overrides?: CallOverrides
+  ): Promise<MarginFeeStructOutput>;
 
   removeBuyer(
     buyer: string,
@@ -508,6 +637,21 @@ export interface Controller extends BaseContract {
     seller: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
+
+  resourceAsks(
+    arg0: BigNumberish,
+    arg1: BigNumberish,
+    overrides?: CallOverrides
+  ): Promise<
+    [BigNumber, number, string, number, number, BigNumber] & {
+      id: BigNumber;
+      resourceId: number;
+      asker: string;
+      units: number;
+      purity: number;
+      askPPU: BigNumber;
+    }
+  >;
 
   setEscrow(
     newEscrow: string,
@@ -529,7 +673,7 @@ export interface Controller extends BaseContract {
     units: BigNumberish,
     purity: BigNumberish,
     askPPU: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
+    overrides?: PayableOverrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
   submitBid(
@@ -537,7 +681,7 @@ export interface Controller extends BaseContract {
     units: BigNumberish,
     purity: BigNumberish,
     bidPPU: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
+    overrides?: PayableOverrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
   callStatic: {
@@ -545,33 +689,47 @@ export interface Controller extends BaseContract {
 
     addSeller(seller: string, overrides?: CallOverrides): Promise<void>;
 
-    askFee(
+    askFees(
+      arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<
-      [BigNumber, number, number, string, boolean] & {
-        id: BigNumber;
+      [number, number, BigNumber, string, boolean] & {
+        id: number;
         percentage: number;
-        amount: number;
+        amount: BigNumber;
         feeType: string;
         cumulative: boolean;
       }
     >;
 
-    bidFee(
+    bidFees(
+      arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<
-      [BigNumber, number, number, string, boolean] & {
-        id: BigNumber;
+      [number, number, BigNumber, string, boolean] & {
+        id: number;
         percentage: number;
-        amount: number;
+        amount: BigNumber;
         feeType: string;
         cumulative: boolean;
       }
     >;
 
-    getAsks(overrides?: CallOverrides): Promise<ResourceAskStructOutput[]>;
+    calculatePercentage(
+      theNumber: BigNumberish,
+      percentage: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
 
-    getBids(overrides?: CallOverrides): Promise<ResourceBidStructOutput[]>;
+    getAsks(
+      periodId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<ResourceAskStructOutput[]>;
+
+    getBids(
+      periodId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<ResourceBidStructOutput[]>;
 
     getBuyers(overrides?: CallOverrides): Promise<string[]>;
 
@@ -579,17 +737,12 @@ export interface Controller extends BaseContract {
 
     getSellers(overrides?: CallOverrides): Promise<string[]>;
 
-    marginFee(
+    lastPeriodId(overrides?: CallOverrides): Promise<number>;
+
+    marginFees(
+      arg0: BigNumberish,
       overrides?: CallOverrides
-    ): Promise<
-      [BigNumber, number, number, string, boolean] & {
-        id: BigNumber;
-        percentage: number;
-        amount: number;
-        feeType: string;
-        cumulative: boolean;
-      }
-    >;
+    ): Promise<[number, number] & { id: number; percentage: number }>;
 
     numberOfPeriodsPerDay(overrides?: CallOverrides): Promise<number>;
 
@@ -599,9 +752,34 @@ export interface Controller extends BaseContract {
 
     periodsStartMinute(overrides?: CallOverrides): Promise<number>;
 
+    pickFees(
+      isAsk: boolean,
+      overrides?: CallOverrides
+    ): Promise<FeeStructOutput[]>;
+
+    pickMarginFee(
+      bid: ResourceBidStruct,
+      overrides?: CallOverrides
+    ): Promise<MarginFeeStructOutput>;
+
     removeBuyer(buyer: string, overrides?: CallOverrides): Promise<void>;
 
     removeSeller(seller: string, overrides?: CallOverrides): Promise<void>;
+
+    resourceAsks(
+      arg0: BigNumberish,
+      arg1: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<
+      [BigNumber, number, string, number, number, BigNumber] & {
+        id: BigNumber;
+        resourceId: number;
+        asker: string;
+        units: number;
+        purity: number;
+        askPPU: BigNumber;
+      }
+    >;
 
     setEscrow(newEscrow: string, overrides?: CallOverrides): Promise<void>;
 
@@ -639,13 +817,25 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    askFee(overrides?: CallOverrides): Promise<BigNumber>;
+    askFees(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
 
-    bidFee(overrides?: CallOverrides): Promise<BigNumber>;
+    bidFees(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
 
-    getAsks(overrides?: CallOverrides): Promise<BigNumber>;
+    calculatePercentage(
+      theNumber: BigNumberish,
+      percentage: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
 
-    getBids(overrides?: CallOverrides): Promise<BigNumber>;
+    getAsks(
+      periodId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    getBids(
+      periodId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
 
     getBuyers(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -653,7 +843,12 @@ export interface Controller extends BaseContract {
 
     getSellers(overrides?: CallOverrides): Promise<BigNumber>;
 
-    marginFee(overrides?: CallOverrides): Promise<BigNumber>;
+    lastPeriodId(overrides?: CallOverrides): Promise<BigNumber>;
+
+    marginFees(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
 
     numberOfPeriodsPerDay(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -663,6 +858,13 @@ export interface Controller extends BaseContract {
 
     periodsStartMinute(overrides?: CallOverrides): Promise<BigNumber>;
 
+    pickFees(isAsk: boolean, overrides?: CallOverrides): Promise<BigNumber>;
+
+    pickMarginFee(
+      bid: ResourceBidStruct,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     removeBuyer(
       buyer: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -671,6 +873,12 @@ export interface Controller extends BaseContract {
     removeSeller(
       seller: string,
       overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    resourceAsks(
+      arg0: BigNumberish,
+      arg1: BigNumberish,
+      overrides?: CallOverrides
     ): Promise<BigNumber>;
 
     setEscrow(
@@ -693,7 +901,7 @@ export interface Controller extends BaseContract {
       units: BigNumberish,
       purity: BigNumberish,
       askPPU: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     submitBid(
@@ -701,7 +909,7 @@ export interface Controller extends BaseContract {
       units: BigNumberish,
       purity: BigNumberish,
       bidPPU: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
   };
 
@@ -716,13 +924,31 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    askFee(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    askFees(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
 
-    bidFee(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    bidFees(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
 
-    getAsks(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    calculatePercentage(
+      theNumber: BigNumberish,
+      percentage: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
 
-    getBids(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    getAsks(
+      periodId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    getBids(
+      periodId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
 
     getBuyers(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
@@ -730,7 +956,12 @@ export interface Controller extends BaseContract {
 
     getSellers(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    marginFee(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    lastPeriodId(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    marginFees(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
 
     numberOfPeriodsPerDay(
       overrides?: CallOverrides
@@ -746,6 +977,16 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    pickFees(
+      isAsk: boolean,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    pickMarginFee(
+      bid: ResourceBidStruct,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     removeBuyer(
       buyer: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -754,6 +995,12 @@ export interface Controller extends BaseContract {
     removeSeller(
       seller: string,
       overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    resourceAsks(
+      arg0: BigNumberish,
+      arg1: BigNumberish,
+      overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
     setEscrow(
@@ -776,7 +1023,7 @@ export interface Controller extends BaseContract {
       units: BigNumberish,
       purity: BigNumberish,
       askPPU: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     submitBid(
@@ -784,7 +1031,7 @@ export interface Controller extends BaseContract {
       units: BigNumberish,
       purity: BigNumberish,
       bidPPU: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
   };
 }

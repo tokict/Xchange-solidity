@@ -4,14 +4,16 @@ pragma solidity ^0.8.9;
 import "../node_modules/hardhat/console.sol";
 import "./Types.sol";
 import "./Helpers.sol";
+import "./OpenZeppelin/SafeMath.sol";
 
 contract Controller is Helpers {
+    using SafeMath for uint256;
     // askFee is applied to every submitted ASK as tax
-    Fee public askFee;
+    Fee[] public askFees;
     // bidFee is applied to every submitted BID as tax
-    Fee public bidFee;
+    Fee[] public bidFees;
     //margin fee required to make a bid
-    Fee public marginFee;
+    MarginFee[] public marginFees;
     // PERIODS are time slots in which asks and bids can be submitted. After it expires, we make results public and open another round.
     // Yes, I know its all public anyway.
 
@@ -19,10 +21,13 @@ contract Controller is Helpers {
     uint8 public numberOfPeriodsPerDay;
     // How long should each period last
     uint8 public periodDurationInMinutes;
+
     // What hour of the day to start period
     uint8 public periodsStartHour;
     // What minute in that hour to start the period
     uint8 public periodsStartMinute;
+
+    uint16 public lastPeriodId;
 
     // Treasury wallet is to keep collected fees and generally, profit.
     // We don't want to keep ANY funds in the contract in case of hack of my screwup
@@ -34,10 +39,10 @@ contract Controller is Helpers {
     Resource[] internal resources;
 
     // Resource asks from sellers
-    ResourceAsk[] internal resourceAsks;
+    mapping(uint16 => ResourceAsk[]) public resourceAsks;
 
     // Resource bids from buyers
-    ResourceBid[] internal resourceBids;
+    mapping(uint16 => ResourceBid[]) internal resourceBids;
 
     // allowed sellers
     address[] internal sellers;
@@ -50,15 +55,16 @@ contract Controller is Helpers {
 
     constructor(ConstructorParams memory params) {
         console.log("Deploying Controller");
-        askFee = params.askFee;
-        bidFee = params.bidFee;
-        marginFee = params.marginFee;
+        require(params.bidFees.length > 0, "No bid fee provided");
+        require(params.askFees.length > 0, "No ask fee provided");
+        require(params.marginFees.length > 0, "No margin fee provided");
         numberOfPeriodsPerDay = params.numberOfPeriodsPerDay;
         periodDurationInMinutes = params.periodDurationInMinutes;
         periodsStartHour = params.periodsStartHour;
         periodsStartMinute = params.periodsStartMinute;
         treasuryWallet = params.treasuryWallet;
         escrowWallet = params.escrowWallet;
+        lastPeriodId = 0;
 
         // Transfer from array to mapping
         for (uint256 i = 0; i < params.buyers.length; i++) {
@@ -70,6 +76,18 @@ contract Controller is Helpers {
 
         for (uint256 i = 0; i < params.resources.length; i++) {
             resources.push(params.resources[i]);
+        }
+
+        for (uint256 i = 0; i < params.askFees.length; i++) {
+            askFees.push(params.askFees[i]);
+        }
+
+        for (uint256 i = 0; i < params.bidFees.length; i++) {
+            bidFees.push(params.bidFees[i]);
+        }
+
+        for (uint256 i = 0; i < params.marginFees.length; i++) {
+            marginFees.push(params.marginFees[i]);
         }
 
         owner = msg.sender;
@@ -176,6 +194,16 @@ contract Controller is Helpers {
         return sellers;
     }
 
+    /**
+     *We default to 0 index fee as the default one
+     */
+    function pickFees(bool isAsk) public view returns (Fee[] memory) {
+        Fee[] memory returnArr = new Fee[](1);
+
+        returnArr[0] = isAsk ? askFees[0] : bidFees[0];
+        return returnArr;
+    }
+
     /**  The seller submits asks here.
      * Must be within period
      */
@@ -184,7 +212,7 @@ contract Controller is Helpers {
         uint16 units,
         uint16 purity,
         uint256 askPPU
-    ) external {
+    ) external payable {
         require(purity < 1000, "Invalid purity");
         require(units > 0, "Invalid units");
         require(askPPU > 0, "Invalid ask PPU");
@@ -193,21 +221,58 @@ contract Controller is Helpers {
             resources
         );
         require(found, "Invalid resource");
+        ResourceAsk memory ask = ResourceAsk({
+            id: 1,
+            resourceId: resourceId,
+            asker: msg.sender,
+            units: units,
+            purity: purity,
+            askPPU: askPPU,
+            appliedFeeIds: new uint16[](1)
+        });
+        Fee[] memory pickedFees = pickFees(true);
 
-        resourceAsks.push(
-            ResourceAsk({
-                id: 1,
-                resourceId: resourceId,
-                asker: msg.sender,
-                units: units,
-                purity: purity,
-                askPPU: askPPU
-            })
-        );
+        for (uint16 index = 0; index < pickedFees.length; index++) {
+            ask.appliedFeeIds[index] = pickedFees[index].id;
+        }
+
+        uint256 feeAmount = 0;
+        for (uint8 i = 0; i < pickedFees.length; i++) {
+            feeAmount = feeAmount.add(pickedFees[i].amount);
+
+            feeAmount = feeAmount.add(
+                calculatePercentage(
+                    ask.askPPU.mul(ask.units),
+                    pickedFees[i].percentage
+                )
+            );
+        }
+        console.log(feeAmount);
+        require(msg.value >= feeAmount, "Not enough ETH sent for fees");
+        sendToTreasury(feeAmount); // Breaks if failed
+        resourceAsks[0].push(ask);
     }
 
-    function getAsks() external view returns (ResourceAsk[] memory) {
-        return resourceAsks;
+    function getAsks(uint16 periodId)
+        public
+        view
+        returns (ResourceAsk[] memory)
+    {
+        ResourceAsk[] memory asks = resourceAsks[periodId];
+        return asks;
+    }
+
+    /**
+     *We default to 0 index fee as the default one
+     */
+    function pickMarginFee(ResourceBid memory bid)
+        public
+        view
+        returns (MarginFee memory)
+    {
+        MarginFee memory returnArr = marginFees[0];
+
+        return returnArr;
     }
 
     /**  The buyer submits bids here.
@@ -218,7 +283,7 @@ contract Controller is Helpers {
         uint16 units,
         uint16 purity,
         uint256 bidPPU
-    ) external {
+    ) external payable {
         require(purity < 1000, "Invalid purity");
         require(units > 0, "Invalid units");
         require(bidPPU > 0, "Invalid ask PPU");
@@ -227,21 +292,57 @@ contract Controller is Helpers {
             resources
         );
         require(found, "Invalid resource");
+        ResourceBid memory bid = ResourceBid({
+            id: 1,
+            resourceId: resourceId,
+            bidder: msg.sender,
+            units: units,
+            purity: purity,
+            bidPPU: bidPPU,
+            appliedFeeIds: new uint16[](1),
+            marginFeeId: 0
+        });
 
-        resourceBids.push(
-            ResourceBid({
-                id: 1,
-                resourceId: resourceId,
-                bidder: msg.sender,
-                units: units,
-                purity: purity,
-                bidPPU: bidPPU
-            })
+        Fee[] memory pickedFees = pickFees(true);
+        uint16[] memory appliedFees = new uint16[](1);
+        for (uint16 index = 0; index < pickedFees.length; index++) {
+            bid.appliedFeeIds[index] = pickedFees[index].id;
+        }
+
+        uint256 feeAmount = 0;
+        MarginFee memory marginFee = pickMarginFee(bid);
+        bid.marginFeeId = marginFee.id;
+        uint256 marginAmount = calculatePercentage(
+            bid.bidPPU.mul(bid.units),
+            marginFee.percentage
         );
+        for (uint8 i = 0; i < bid.appliedFeeIds.length; i++) {
+            feeAmount.add(pickedFees[i].amount);
+            feeAmount.add(
+                calculatePercentage(
+                    bid.bidPPU.mul(bid.units),
+                    pickedFees[i].percentage
+                )
+            );
+        }
+        // We now have all fees calculated. Lets see if there is enough money and transfer it to treasury
+        require(
+            msg.value >= feeAmount.add(marginAmount),
+            "Not enough ETH sent for fees"
+        );
+        sendToTreasury(feeAmount); // Breaks if failed
+        sendToEscrow(feeAmount); // Breaks if failed
+
+        resourceBids[0].push(bid);
     }
 
-    function getBids() external view returns (ResourceBid[] memory) {
-        return resourceBids;
+    function getBids(uint16 periodId)
+        public
+        view
+        returns (ResourceBid[] memory)
+    {
+        ResourceBid[] memory bids = resourceBids[periodId];
+        return bids;
     }
 
     function sendToEscrow(uint256 amount) private {
