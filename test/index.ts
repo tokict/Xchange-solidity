@@ -7,8 +7,8 @@ import {
   ResourceStruct,
 } from "@types";
 import { expect } from "chai";
-import { BigNumber } from "ethers";
-import { ethers } from "hardhat";
+import { BigNumber, Contract } from "ethers";
+import { ethers, network } from "hardhat";
 
 enum FeeType {
   "ASK",
@@ -78,8 +78,48 @@ async function setup() {
     escrow,
   };
 }
+async function submitAsk(
+  contract: Contract,
+  resourceId: number,
+  units: number,
+  askPPU: BigNumber
+) {
+  const fees: FeeStruct[] = await contract.pickFees(true);
+  expect(fees).to.have.lengthOf(1);
+
+  const percentageFee = askPPU.mul(units).mul(fees[0].percentage).div(10000);
+
+  await contract.submitAsk(resourceId, units, 950, askPPU, {
+    value: percentageFee.add(fees[0].amount),
+    gasLimit: 15000000,
+  });
+}
+
+async function submitBid(
+  contract: Contract,
+  resourceId: number,
+  units: number,
+  bidPPU: BigNumber
+) {
+  // Get fees that will be needed
+  const fees: FeeStruct[] = await contract.pickFees(false);
+  const percentageFee = bidPPU.mul(units).mul(fees[0].percentage).div(10000);
+
+  // Get margin for this bid amount
+  const margin: MarginFeeStruct = await contract.pickMarginFee(0, bidPPU);
+  const marginFee = bidPPU.mul(units).mul(margin.percentage).div(10000);
+
+  // Submit the bid
+  await contract.submitBid(resourceId, units, 850, bidPPU, {
+    value: percentageFee.add(fees[0].amount).add(marginFee),
+    gasLimit: 15000000,
+  });
+}
 
 describe("Controller", async function () {
+  beforeEach(async function () {
+    await network.provider.send("hardhat_reset");
+  });
   it("Should correctly deploy a contract", async function () {
     // We get the contract to deploy
 
@@ -125,23 +165,15 @@ describe("Controller", async function () {
   it("ASK - Should allow seller to submit an ASK during interval, apply proper fees", async function () {
     const { controller, seller1, treasury } = await setup();
     const connected = controller.connect(seller1);
-
-    const fees: FeeStruct[] = await controller.pickFees(true);
-    expect(fees).to.have.lengthOf(1);
     const units = 111;
     const askPPU = ethers.utils.parseEther("0.1");
-    const percentageFee = askPPU.mul(units).mul(fees[0].percentage).div(10000);
-
-    await connected.submitAsk(1, units, 950, askPPU, {
-      value: percentageFee.add(fees[0].amount),
-      gasLimit: 15000000,
-    });
+    await submitAsk(connected, 0, units, askPPU);
 
     const asks: ResourceAskStruct[] = await connected.getAsks(0);
     // Check if the ask was saved
     expect(asks[0]).to.have.property("units", units);
     expect(asks[0]).to.have.property("purity", 950);
-    expect(asks[0]).to.have.property("resourceId", 1);
+    expect(asks[0]).to.have.property("resourceId", 0);
     expect(asks[0]).to.have.property("asker", seller1.address.toString());
     expect(BigNumber.from(asks[0].askPPU)).to.be.equal(askPPU);
 
@@ -157,19 +189,7 @@ describe("Controller", async function () {
     const units = 90;
     const bidPPU = ethers.utils.parseEther("0.11");
 
-    // Get fees that will be needed
-    const fees: FeeStruct[] = await controller.pickFees(false);
-    const percentageFee = bidPPU.mul(units).mul(fees[0].percentage).div(10000);
-
-    // Get margin for this bid amount
-    const margin: MarginFeeStruct = await controller.pickMarginFee(0, bidPPU);
-    const marginFee = bidPPU.mul(units).mul(margin.percentage).div(10000);
-
-    // Submit the bid
-    await connected.submitBid(1, units, 850, bidPPU, {
-      value: percentageFee.add(fees[0].amount).add(marginFee),
-      gasLimit: 15000000,
-    });
+    await submitBid(connected, 0, units, bidPPU);
 
     // Get period bids
     const bids: ResourceBidStruct[] = await connected.getBids(0);
@@ -177,17 +197,54 @@ describe("Controller", async function () {
     // Check if the bid was saved
     expect(bids[0]).to.have.property("units", units);
     expect(bids[0]).to.have.property("purity", 850);
-    expect(bids[0]).to.have.property("resourceId", 1);
+    expect(bids[0]).to.have.property("resourceId", 0);
     expect(bids[0]).to.have.property("bidder", buyer1.address.toString());
     expect(BigNumber.from(bids[0].bidPPU)).to.be.equal(bidPPU);
 
     // Check if treasury got the fees
 
     expect(await connected.provider.getBalance(treasury.address)).to.be.equal(
-      BigNumber.from("10000230000000000000000") // 10000109000000000000000 without previous tests
+      BigNumber.from("10000109000000000000000")
     );
     expect(await connected.provider.getBalance(escrow.address)).to.be.equal(
       BigNumber.from("10000099000000000000000")
     );
+
+    // Add one more ask and bid and check if avg price is being calculated correctly
+  });
+
+  it("BID - Should calculate average price correctly", async function () {
+    const { controller, buyer1, buyer2, seller1, seller2 } = await setup();
+    const ask1PPU = ethers.utils.parseEther("0.11");
+    const ask2PPU = ethers.utils.parseEther("0.15");
+    const bid1PPU = ethers.utils.parseEther("0.09");
+    const bid2PPU = ethers.utils.parseEther("0.08");
+
+    const seller1Con = controller.connect(seller1);
+    await submitAsk(seller1Con, 0, 100, ask1PPU);
+    const seller2Con = controller.connect(seller2);
+    await submitAsk(seller2Con, 0, 100, ask2PPU);
+    const buyer1Con = controller.connect(buyer1);
+    await submitBid(buyer1Con, 0, 100, bid1PPU);
+    const buyer2Con = controller.connect(buyer2);
+    await submitBid(buyer2Con, 0, 100, bid2PPU);
+
+    const bids: ResourceBidStruct[] = await seller1Con.getBids(0);
+    expect(bids).to.have.lengthOf(2);
+    const asks: ResourceAskStruct[] = await seller1Con.getAsks(0);
+    expect(asks).to.have.lengthOf(2);
+
+    //Trigger price calculation
+    await seller1Con.calculatePrice({
+      gasLimit: 30000000,
+    });
+
+    const price = await seller1Con.priceCalculations(
+      ethers.utils.keccak256(
+        ethers.utils.solidityPack(["uint16", "string", "uint16"], [0, "_", 0])
+      )
+    );
+
+    expect(price).to.be.equal(BigNumber.from("107500000000000000"));
   });
 });

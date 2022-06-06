@@ -4,10 +4,8 @@ pragma solidity ^0.8.9;
 import "../node_modules/hardhat/console.sol";
 import "./Types.sol";
 import "./Helpers.sol";
-import "./OpenZeppelin/SafeMath.sol";
 
 contract Controller is Helpers {
-    using SafeMath for uint256;
     // askFee is applied to every submitted ASK as tax
     Fee[] public askFees;
     // bidFee is applied to every submitted BID as tax
@@ -43,6 +41,15 @@ contract Controller is Helpers {
 
     // Resource bids from buyers
     mapping(uint16 => ResourceBid[]) internal resourceBids;
+
+    // Incoming payments from buyers
+    mapping(uint16 => IncomingTradePayment[]) internal incomingTradePayments;
+
+    // Price calculations. The key is a composite made of {periodId}_{resourceId}
+    mapping(bytes32 => uint256) public priceCalculations;
+
+    // Outgoing payments to sellers
+    OutgoingPayment[] internal outgoingPayments;
 
     // allowed sellers
     address[] internal sellers;
@@ -216,11 +223,11 @@ contract Controller is Helpers {
         require(purity < 1000, "Invalid purity");
         require(units > 0, "Invalid units");
         require(askPPU > 0, "Invalid ask PPU");
-        (bool found, uint256 index) = arrayFindResourceIndex(
-            resourceId,
-            resources
+
+        require(
+            resourceId >= 0 && resourceId < resources.length,
+            "Invalid resource"
         );
-        require(found, "Invalid resource");
         ResourceAsk memory ask = ResourceAsk({
             id: 1,
             resourceId: resourceId,
@@ -238,14 +245,14 @@ contract Controller is Helpers {
 
         uint256 feeAmount = 0;
         for (uint8 i = 0; i < pickedFees.length; i++) {
-            feeAmount = feeAmount.add(pickedFees[i].amount);
+            feeAmount = feeAmount + pickedFees[i].amount;
 
-            feeAmount = feeAmount.add(
+            feeAmount =
+                feeAmount +
                 calculatePercentage(
-                    ask.askPPU.mul(ask.units),
+                    ask.askPPU * ask.units,
                     pickedFees[i].percentage
-                )
-            );
+                );
         }
 
         require(msg.value >= feeAmount, "Not enough ETH sent for fees");
@@ -289,11 +296,10 @@ contract Controller is Helpers {
         require(purity < 1000, "Invalid purity");
         require(units > 0, "Invalid units");
         require(bidPPU > 0, "Invalid ask PPU");
-        (bool found, uint256 index) = arrayFindResourceIndex(
-            resourceId,
-            resources
+        require(
+            resourceId >= 0 && resourceId < resources.length,
+            "Invalid resource"
         );
-        require(found, "Invalid resource");
         ResourceBid memory bid = ResourceBid({
             id: 1,
             resourceId: resourceId,
@@ -315,22 +321,22 @@ contract Controller is Helpers {
         MarginFee memory marginFee = pickMarginFee(bid.id, bid.bidPPU);
         bid.marginFeeId = marginFee.id;
         uint256 marginAmount = calculatePercentage(
-            bid.bidPPU.mul(bid.units),
+            bid.bidPPU * bid.units,
             marginFee.percentage
         );
         for (uint8 i = 0; i < bid.appliedFeeIds.length; i++) {
-            feeAmount = feeAmount.add(pickedFees[i].amount);
-            feeAmount = feeAmount.add(
+            feeAmount = feeAmount + pickedFees[i].amount;
+            feeAmount =
+                feeAmount +
                 calculatePercentage(
-                    bid.bidPPU.mul(bid.units),
+                    bid.bidPPU * bid.units,
                     pickedFees[i].percentage
-                )
-            );
+                );
         }
 
         // We now have all fees calculated. Lets see if there is enough money and transfer it to treasury
         require(
-            msg.value >= feeAmount.add(marginAmount),
+            msg.value >= feeAmount + marginAmount,
             "Not enough ETH sent for fees"
         );
 
@@ -350,31 +356,117 @@ contract Controller is Helpers {
         return bids;
     }
 
-    function sendToEscrow(uint256 amount) public payable {
+    /** Calculate average price for all resources in period */
+    function calculatePrice() public {
+        // Array index corresponds to resource id
+        uint256[] memory averageResourceAskPPU = new uint256[](
+            resources.length
+        );
+        uint256[] memory averageResourceBidPPU = new uint256[](
+            resources.length
+        );
+        uint16[] memory resourceNrAsks = new uint16[](resources.length);
+        uint16[] memory resourceNrBids = new uint16[](resources.length);
+
+        // Sum and count ASKS
+        for (
+            uint16 index = 0;
+            index < resourceAsks[lastPeriodId].length;
+            index++
+        ) {
+            uint16 id = resourceAsks[lastPeriodId][index].resourceId;
+
+            averageResourceAskPPU[id] =
+                averageResourceAskPPU[id] +
+                resourceAsks[lastPeriodId][index].askPPU;
+            resourceNrAsks[id] = resourceNrAsks[id] + 1;
+        }
+
+        // Sum and count BIDS
+        for (
+            uint16 index2 = 0;
+            index2 < resourceBids[lastPeriodId].length;
+            index2++
+        ) {
+            uint16 id = resourceBids[lastPeriodId][index2].resourceId;
+            averageResourceBidPPU[id] =
+                averageResourceBidPPU[id] +
+                resourceBids[lastPeriodId][index2].bidPPU;
+            resourceNrBids[id] = resourceNrBids[id] + 1;
+        }
+
+        //Calculate prices and save ASKS
+        for (
+            uint256 index3 = 0;
+            index3 < averageResourceAskPPU.length;
+            index3++
+        ) {
+            uint256 sum = averageResourceAskPPU[index3];
+            uint16 nrOfAsks = resourceNrAsks[index3];
+
+            averageResourceAskPPU[index3] = sum / nrOfAsks;
+        }
+
+        // Calculate prices and save BIDS
+        for (
+            uint16 index5 = 0;
+            index5 < averageResourceBidPPU.length;
+            index5++
+        ) {
+            uint256 sum = averageResourceBidPPU[index5];
+
+            uint16 nrOfBids = resourceNrBids[index5];
+
+            averageResourceBidPPU[index5] = sum / nrOfBids;
+        }
+
+        for (
+            uint16 index6 = 0;
+            index6 < averageResourceAskPPU.length;
+            index6++
+        ) {
+            if (
+                averageResourceAskPPU[index6] > 0 &&
+                averageResourceBidPPU[index6] > 0
+            ) {
+                uint256 avgAskPPU = averageResourceAskPPU[index6];
+
+                uint256 avgBidPPU = averageResourceBidPPU[index6];
+
+                uint256 averagePrice = (avgAskPPU + avgBidPPU) / 2;
+
+                if (averagePrice > 0) {
+                    priceCalculations[
+                        keccak256(abi.encodePacked(lastPeriodId, "_", index6))
+                    ] = averagePrice;
+                }
+            }
+        }
+    }
+
+    function sendToEscrow(uint256 amount) internal {
         escrowWallet.transfer(amount);
     }
 
-    function sendToTreasury(uint256 amount) public payable {
+    function sendToTreasury(uint256 amount) internal {
         treasuryWallet.transfer(amount);
     }
 
     function sendToSeller(
-        address seller,
+        address payable seller,
         IncomingTradePayment memory receivedPayment
-    ) private {
-        (bool sent, bytes memory data) = seller.call{
-            value: receivedPayment.ethTransferred - receivedPayment.feeAmount
-        }("");
-        require(sent, "Failed to send ether");
+    ) internal {
+        seller.transfer(
+            receivedPayment.ethTransferred - receivedPayment.feeAmount
+        );
     }
 
     function returnToBuyer(
-        address buyer,
+        address payable buyer,
         IncomingTradePayment memory receivedPayment
-    ) private {
-        (bool sent, bytes memory data) = buyer.call{
-            value: receivedPayment.ethTransferred - receivedPayment.feeAmount
-        }("");
-        require(sent, "Failed to send ether");
+    ) internal {
+        buyer.transfer(
+            receivedPayment.ethTransferred - receivedPayment.feeAmount
+        );
     }
 }

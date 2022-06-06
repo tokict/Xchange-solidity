@@ -1,12 +1,9 @@
 //SPDX-License-Identifier: WTFPL
 pragma solidity ^0.8.9;
 import "./Types.sol";
-import "./OpenZeppelin/SafeMath.sol";
 import "../node_modules/hardhat/console.sol";
 
 contract Helpers {
-    using SafeMath for uint256;
-
     function arrayFindAddressIndex(address addr, address[] memory arr)
         internal
         pure
@@ -37,9 +34,9 @@ contract Helpers {
 
     function calculatePercentage(uint256 theNumber, uint16 percentage)
         public
-        view
+        pure
         returns (uint256)
     {
-        return (theNumber.mul(percentage)) / 10000;
+        return (theNumber * percentage) / 10000;
     }
 }

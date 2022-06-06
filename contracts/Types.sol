@@ -97,6 +97,7 @@ struct IncomingTradePayment {
     uint256 agreementId;
     uint8[] appliedFees;
     uint256 feeAmount;
+    bool useMargin;
 }
 
 // This is what we generate when we release payment
@@ -107,8 +108,7 @@ struct OutgoingPayment {
     uint16 transactionTime;
     uint256 ethTransferred;
     uint8[] appliedFees;
-    uint256 feeAmount;
-    bool refund;
+    bool isRefund;
     bool isMargin;
 }
 

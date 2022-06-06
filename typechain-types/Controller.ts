@@ -178,6 +178,7 @@ export interface ControllerInterface extends utils.Interface {
     "askFees(uint256)": FunctionFragment;
     "bidFees(uint256)": FunctionFragment;
     "calculatePercentage(uint256,uint16)": FunctionFragment;
+    "calculatePrice()": FunctionFragment;
     "getAsks(uint16)": FunctionFragment;
     "getBids(uint16)": FunctionFragment;
     "getBuyers()": FunctionFragment;
@@ -191,11 +192,10 @@ export interface ControllerInterface extends utils.Interface {
     "periodsStartMinute()": FunctionFragment;
     "pickFees(bool)": FunctionFragment;
     "pickMarginFee(uint16,uint256)": FunctionFragment;
+    "priceCalculations(bytes32)": FunctionFragment;
     "removeBuyer(address)": FunctionFragment;
     "removeSeller(address)": FunctionFragment;
     "resourceAsks(uint16,uint256)": FunctionFragment;
-    "sendToEscrow(uint256)": FunctionFragment;
-    "sendToTreasury(uint256)": FunctionFragment;
     "setEscrow(address)": FunctionFragment;
     "setOwner(address)": FunctionFragment;
     "setTreasury(address)": FunctionFragment;
@@ -210,6 +210,7 @@ export interface ControllerInterface extends utils.Interface {
       | "askFees"
       | "bidFees"
       | "calculatePercentage"
+      | "calculatePrice"
       | "getAsks"
       | "getBids"
       | "getBuyers"
@@ -223,11 +224,10 @@ export interface ControllerInterface extends utils.Interface {
       | "periodsStartMinute"
       | "pickFees"
       | "pickMarginFee"
+      | "priceCalculations"
       | "removeBuyer"
       | "removeSeller"
       | "resourceAsks"
-      | "sendToEscrow"
-      | "sendToTreasury"
       | "setEscrow"
       | "setOwner"
       | "setTreasury"
@@ -248,6 +248,10 @@ export interface ControllerInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "calculatePercentage",
     values: [BigNumberish, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "calculatePrice",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "getAsks",
@@ -295,6 +299,10 @@ export interface ControllerInterface extends utils.Interface {
     functionFragment: "pickMarginFee",
     values: [BigNumberish, BigNumberish]
   ): string;
+  encodeFunctionData(
+    functionFragment: "priceCalculations",
+    values: [BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "removeBuyer", values: [string]): string;
   encodeFunctionData(
     functionFragment: "removeSeller",
@@ -303,14 +311,6 @@ export interface ControllerInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "resourceAsks",
     values: [BigNumberish, BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "sendToEscrow",
-    values: [BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "sendToTreasury",
-    values: [BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "setEscrow", values: [string]): string;
   encodeFunctionData(functionFragment: "setOwner", values: [string]): string;
@@ -330,6 +330,10 @@ export interface ControllerInterface extends utils.Interface {
   decodeFunctionResult(functionFragment: "bidFees", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "calculatePercentage",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "calculatePrice",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "getAsks", data: BytesLike): Result;
@@ -367,6 +371,10 @@ export interface ControllerInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "priceCalculations",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "removeBuyer",
     data: BytesLike
   ): Result;
@@ -376,14 +384,6 @@ export interface ControllerInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "resourceAsks",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "sendToEscrow",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "sendToTreasury",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "setEscrow", data: BytesLike): Result;
@@ -467,6 +467,10 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[BigNumber]>;
 
+    calculatePrice(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     getAsks(
       periodId: BigNumberish,
       overrides?: CallOverrides
@@ -509,6 +513,11 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[MarginFeeStructOutput]>;
 
+    priceCalculations(
+      arg0: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<[BigNumber]>;
+
     removeBuyer(
       buyer: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -533,16 +542,6 @@ export interface Controller extends BaseContract {
         askPPU: BigNumber;
       }
     >;
-
-    sendToEscrow(
-      amount: BigNumberish,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    sendToTreasury(
-      amount: BigNumberish,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
 
     setEscrow(
       newEscrow: string,
@@ -618,6 +617,10 @@ export interface Controller extends BaseContract {
     overrides?: CallOverrides
   ): Promise<BigNumber>;
 
+  calculatePrice(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   getAsks(
     periodId: BigNumberish,
     overrides?: CallOverrides
@@ -660,6 +663,11 @@ export interface Controller extends BaseContract {
     overrides?: CallOverrides
   ): Promise<MarginFeeStructOutput>;
 
+  priceCalculations(
+    arg0: BytesLike,
+    overrides?: CallOverrides
+  ): Promise<BigNumber>;
+
   removeBuyer(
     buyer: string,
     overrides?: Overrides & { from?: string | Promise<string> }
@@ -684,16 +692,6 @@ export interface Controller extends BaseContract {
       askPPU: BigNumber;
     }
   >;
-
-  sendToEscrow(
-    amount: BigNumberish,
-    overrides?: PayableOverrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  sendToTreasury(
-    amount: BigNumberish,
-    overrides?: PayableOverrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
 
   setEscrow(
     newEscrow: string,
@@ -763,6 +761,8 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    calculatePrice(overrides?: CallOverrides): Promise<void>;
+
     getAsks(
       periodId: BigNumberish,
       overrides?: CallOverrides
@@ -805,6 +805,11 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<MarginFeeStructOutput>;
 
+    priceCalculations(
+      arg0: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     removeBuyer(buyer: string, overrides?: CallOverrides): Promise<void>;
 
     removeSeller(seller: string, overrides?: CallOverrides): Promise<void>;
@@ -823,16 +828,6 @@ export interface Controller extends BaseContract {
         askPPU: BigNumber;
       }
     >;
-
-    sendToEscrow(
-      amount: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    sendToTreasury(
-      amount: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<void>;
 
     setEscrow(newEscrow: string, overrides?: CallOverrides): Promise<void>;
 
@@ -880,6 +875,10 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    calculatePrice(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     getAsks(
       periodId: BigNumberish,
       overrides?: CallOverrides
@@ -919,6 +918,11 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    priceCalculations(
+      arg0: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     removeBuyer(
       buyer: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -933,16 +937,6 @@ export interface Controller extends BaseContract {
       arg0: BigNumberish,
       arg1: BigNumberish,
       overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
-    sendToEscrow(
-      amount: BigNumberish,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    sendToTreasury(
-      amount: BigNumberish,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     setEscrow(
@@ -1004,6 +998,10 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    calculatePrice(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
     getAsks(
       periodId: BigNumberish,
       overrides?: CallOverrides
@@ -1052,6 +1050,11 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    priceCalculations(
+      arg0: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     removeBuyer(
       buyer: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -1066,16 +1069,6 @@ export interface Controller extends BaseContract {
       arg0: BigNumberish,
       arg1: BigNumberish,
       overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
-    sendToEscrow(
-      amount: BigNumberish,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    sendToTreasury(
-      amount: BigNumberish,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     setEscrow(
