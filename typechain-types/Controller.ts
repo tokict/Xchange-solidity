@@ -177,6 +177,7 @@ export interface ControllerInterface extends utils.Interface {
     "addSeller(address)": FunctionFragment;
     "askFees(uint256)": FunctionFragment;
     "bidFees(uint256)": FunctionFragment;
+    "buyerAgree(uint16,uint16)": FunctionFragment;
     "calculatePercentage(uint256,uint16)": FunctionFragment;
     "calculatePrice()": FunctionFragment;
     "getAsks(uint16)": FunctionFragment;
@@ -195,7 +196,7 @@ export interface ControllerInterface extends utils.Interface {
     "priceCalculations(bytes32)": FunctionFragment;
     "removeBuyer(address)": FunctionFragment;
     "removeSeller(address)": FunctionFragment;
-    "resourceAsks(uint16,uint256)": FunctionFragment;
+    "sellerAgree(uint16,uint16)": FunctionFragment;
     "setEscrow(address)": FunctionFragment;
     "setOwner(address)": FunctionFragment;
     "setTreasury(address)": FunctionFragment;
@@ -209,6 +210,7 @@ export interface ControllerInterface extends utils.Interface {
       | "addSeller"
       | "askFees"
       | "bidFees"
+      | "buyerAgree"
       | "calculatePercentage"
       | "calculatePrice"
       | "getAsks"
@@ -227,7 +229,7 @@ export interface ControllerInterface extends utils.Interface {
       | "priceCalculations"
       | "removeBuyer"
       | "removeSeller"
-      | "resourceAsks"
+      | "sellerAgree"
       | "setEscrow"
       | "setOwner"
       | "setTreasury"
@@ -244,6 +246,10 @@ export interface ControllerInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "bidFees",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "buyerAgree",
+    values: [BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "calculatePercentage",
@@ -309,7 +315,7 @@ export interface ControllerInterface extends utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(
-    functionFragment: "resourceAsks",
+    functionFragment: "sellerAgree",
     values: [BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "setEscrow", values: [string]): string;
@@ -328,6 +334,7 @@ export interface ControllerInterface extends utils.Interface {
   decodeFunctionResult(functionFragment: "addSeller", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "askFees", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "bidFees", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "buyerAgree", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "calculatePercentage",
     data: BytesLike
@@ -383,7 +390,7 @@ export interface ControllerInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "resourceAsks",
+    functionFragment: "sellerAgree",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "setEscrow", data: BytesLike): Result;
@@ -461,6 +468,12 @@ export interface Controller extends BaseContract {
       }
     >;
 
+    buyerAgree(
+      bidId: BigNumberish,
+      units: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     calculatePercentage(
       theNumber: BigNumberish,
       percentage: BigNumberish,
@@ -528,20 +541,11 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    resourceAsks(
-      arg0: BigNumberish,
-      arg1: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<
-      [number, number, string, number, number, BigNumber] & {
-        id: number;
-        resourceId: number;
-        asker: string;
-        units: number;
-        purity: number;
-        askPPU: BigNumber;
-      }
-    >;
+    sellerAgree(
+      askId: BigNumberish,
+      units: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
     setEscrow(
       newEscrow: string,
@@ -611,6 +615,12 @@ export interface Controller extends BaseContract {
     }
   >;
 
+  buyerAgree(
+    bidId: BigNumberish,
+    units: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   calculatePercentage(
     theNumber: BigNumberish,
     percentage: BigNumberish,
@@ -678,20 +688,11 @@ export interface Controller extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  resourceAsks(
-    arg0: BigNumberish,
-    arg1: BigNumberish,
-    overrides?: CallOverrides
-  ): Promise<
-    [number, number, string, number, number, BigNumber] & {
-      id: number;
-      resourceId: number;
-      asker: string;
-      units: number;
-      purity: number;
-      askPPU: BigNumber;
-    }
-  >;
+  sellerAgree(
+    askId: BigNumberish,
+    units: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   setEscrow(
     newEscrow: string,
@@ -755,6 +756,12 @@ export interface Controller extends BaseContract {
       }
     >;
 
+    buyerAgree(
+      bidId: BigNumberish,
+      units: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
     calculatePercentage(
       theNumber: BigNumberish,
       percentage: BigNumberish,
@@ -814,20 +821,11 @@ export interface Controller extends BaseContract {
 
     removeSeller(seller: string, overrides?: CallOverrides): Promise<void>;
 
-    resourceAsks(
-      arg0: BigNumberish,
-      arg1: BigNumberish,
+    sellerAgree(
+      askId: BigNumberish,
+      units: BigNumberish,
       overrides?: CallOverrides
-    ): Promise<
-      [number, number, string, number, number, BigNumber] & {
-        id: number;
-        resourceId: number;
-        asker: string;
-        units: number;
-        purity: number;
-        askPPU: BigNumber;
-      }
-    >;
+    ): Promise<void>;
 
     setEscrow(newEscrow: string, overrides?: CallOverrides): Promise<void>;
 
@@ -868,6 +866,12 @@ export interface Controller extends BaseContract {
     askFees(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
 
     bidFees(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
+
+    buyerAgree(
+      bidId: BigNumberish,
+      units: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
 
     calculatePercentage(
       theNumber: BigNumberish,
@@ -933,10 +937,10 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    resourceAsks(
-      arg0: BigNumberish,
-      arg1: BigNumberish,
-      overrides?: CallOverrides
+    sellerAgree(
+      askId: BigNumberish,
+      units: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     setEscrow(
@@ -990,6 +994,12 @@ export interface Controller extends BaseContract {
     bidFees(
       arg0: BigNumberish,
       overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    buyerAgree(
+      bidId: BigNumberish,
+      units: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     calculatePercentage(
@@ -1065,10 +1075,10 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    resourceAsks(
-      arg0: BigNumberish,
-      arg1: BigNumberish,
-      overrides?: CallOverrides
+    sellerAgree(
+      askId: BigNumberish,
+      units: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     setEscrow(

@@ -213,7 +213,7 @@ describe("Controller", async function () {
     // Add one more ask and bid and check if avg price is being calculated correctly
   });
 
-  it("BID - Should calculate average price correctly", async function () {
+  it("BID - Should calculate average price correctly, take agreements and accept pay", async function () {
     const { controller, buyer1, buyer2, seller1, seller2 } = await setup();
     const ask1PPU = ethers.utils.parseEther("0.11");
     const ask2PPU = ethers.utils.parseEther("0.15");
@@ -246,5 +246,10 @@ describe("Controller", async function () {
     );
 
     expect(price).to.be.equal(BigNumber.from("107500000000000000"));
+
+    await expect(seller1Con.sellerAgree(asks[0].id, asks[0].units)).not.to.be
+      .reverted;
+    await expect(buyer1Con.buyerAgree(bids[0].id, bids[0].units)).not.to.be
+      .reverted;
   });
 });

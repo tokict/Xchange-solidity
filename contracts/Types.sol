@@ -65,33 +65,26 @@ struct PeriodInputs {
     uint16[] bids;
 }
 
-// We calculate the median price based on all period bids and asks
-struct PriceCalculation {
-    uint256 id;
-    uint16 periodId;
-    uint16 resourceId;
-    uint256 PPU;
-}
-
 // After presenting median price, the buyer sends his approval for corrected price and makes an obligation to purchase initial bid quantity
 struct BuyerAgreement {
-    uint256 bidId;
-    uint256 priceCalculationId;
+    uint16 bidId;
+    bytes32 priceCalculationId;
     uint16 units;
-    uint16 time;
+    uint256 time;
 }
 
 // After presenting median price, the seller agrees to the price
 struct SellerAgreement {
-    uint256 askId;
-    uint256 priceCalculationId;
-    uint16 time;
+    uint16 askId;
+    bytes32 priceCalculationId;
+    uint16 units;
+    uint256 time;
 }
 
 // This is what we generate when we get payment. We should not have any ghost incoming payments in the system
 struct IncomingTradePayment {
     uint16 id;
-    uint16 transactionTime;
+    uint256 transactionTime;
     address buyer;
     uint256 ethTransferred;
     uint256 agreementId;
@@ -105,7 +98,7 @@ struct OutgoingPayment {
     uint16 id;
     uint16 incomingPaymentId;
     address user;
-    uint16 transactionTime;
+    uint256 transactionTime;
     uint256 ethTransferred;
     uint8[] appliedFees;
     bool isRefund;

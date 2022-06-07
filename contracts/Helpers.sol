@@ -32,6 +32,34 @@ contract Helpers {
         return (false, 0);
     }
 
+    function arrayFindBidIndex(uint16 id, ResourceBid[] memory arr)
+        internal
+        pure
+        returns (bool found, uint16 index)
+    {
+        for (uint16 i = 0; i < arr.length; i++) {
+            if (arr[i].id == id) {
+                return (true, i);
+            }
+        }
+
+        return (false, 0);
+    }
+
+    function arrayFindAskIndex(uint16 id, ResourceAsk[] memory arr)
+        internal
+        pure
+        returns (bool found, uint16 index)
+    {
+        for (uint16 i = 0; i < arr.length; i++) {
+            if (arr[i].id == id) {
+                return (true, i);
+            }
+        }
+
+        return (false, 0);
+    }
+
     function calculatePercentage(uint256 theNumber, uint16 percentage)
         public
         pure

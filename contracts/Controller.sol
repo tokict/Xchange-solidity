@@ -37,10 +37,16 @@ contract Controller is Helpers {
     Resource[] internal resources;
 
     // Resource asks from sellers
-    mapping(uint16 => ResourceAsk[]) public resourceAsks;
+    mapping(uint16 => ResourceAsk[]) internal resourceAsks;
 
     // Resource bids from buyers
     mapping(uint16 => ResourceBid[]) internal resourceBids;
+
+    // Period trade agreements from buyers
+    mapping(uint16 => BuyerAgreement[]) internal buyerAgreements;
+
+    // Period trade agreements from sellers
+    mapping(uint16 => SellerAgreement[]) internal sellerAgreements;
 
     // Incoming payments from buyers
     mapping(uint16 => IncomingTradePayment[]) internal incomingTradePayments;
@@ -442,6 +448,63 @@ contract Controller is Helpers {
                 }
             }
         }
+    }
+
+    function buyerAgree(uint16 bidId, uint16 units) external {
+        (bool found, uint16 index) = arrayFindBidIndex(
+            bidId,
+            resourceBids[lastPeriodId]
+        );
+        require(found, "Bid not found");
+        ResourceBid memory bid = resourceBids[lastPeriodId][index];
+
+        require(
+            resourceBids[lastPeriodId][index].bidder == msg.sender,
+            "Bid not owned"
+        );
+        bytes32 priceCalcKey = keccak256(
+            abi.encodePacked(lastPeriodId, "_", bid.resourceId)
+        );
+
+        uint256 calc = priceCalculations[priceCalcKey];
+        require(calc > 0, "Missing price calc");
+
+        BuyerAgreement memory agree = BuyerAgreement({
+            bidId: bidId,
+            priceCalculationId: priceCalcKey,
+            units: units,
+            time: block.timestamp
+        });
+
+        buyerAgreements[lastPeriodId].push(agree);
+    }
+
+    function sellerAgree(uint16 askId, uint16 units) external {
+        (bool found, uint16 index) = arrayFindAskIndex(
+            askId,
+            resourceAsks[lastPeriodId]
+        );
+        require(found, "Ask not found");
+        ResourceAsk memory ask = resourceAsks[lastPeriodId][index];
+
+        require(
+            resourceAsks[lastPeriodId][index].asker == msg.sender,
+            "Ask not owned"
+        );
+        bytes32 priceCalcKey = keccak256(
+            abi.encodePacked(lastPeriodId, "_", ask.resourceId)
+        );
+
+        uint256 calc = priceCalculations[priceCalcKey];
+        require(calc > 0, "Missing price calc");
+
+        SellerAgreement memory agree = SellerAgreement({
+            askId: askId,
+            priceCalculationId: priceCalcKey,
+            units: units,
+            time: block.timestamp
+        });
+        sellerAgreements[lastPeriodId].push(agree);
     }
 
     function sendToEscrow(uint256 amount) internal {
