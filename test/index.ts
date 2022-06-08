@@ -5,6 +5,7 @@ import {
   ResourceAskStruct,
   ResourceBidStruct,
   ResourceStruct,
+  TradeOfferStruct,
 } from "@types";
 import { expect } from "chai";
 import { BigNumber, Contract } from "ethers";
@@ -253,11 +254,21 @@ describe("Controller", async function () {
 
     expect(price).to.be.equal(BigNumber.from("107500000000000000"));
 
-    await expect(
-      seller1Con.sellerAgree(asks[0].id, asks[0].minUnits, asks[0].maxUnits)
-    ).not.to.be.reverted;
-    await expect(
-      buyer1Con.buyerAgree(bids[0].id, bids[0].minUnits, bids[0].maxUnits)
-    ).not.to.be.reverted;
+    // Send offer
+    await buyer1Con.sendTradeOffer(0, 100, seller1.address);
+    // Check if offer is registered
+    const offers: TradeOfferStruct[] = await seller1Con.getTradeOffersForSeller(
+      seller1.address
+    );
+    expect(offers).to.have.lengthOf(1);
+    // Accept offer
+
+    await expect(seller1Con.acceptTradeOffer(offers[0].id)).not.to.be.reverted;
+
+    // Check state
+    const offers2: TradeOfferStruct[] =
+      await seller1Con.getTradeOffersForSeller(seller1.address);
+
+    expect(offers2[0].acceptedAt).not.to.equal(BigNumber.from("0"));
   });
 });

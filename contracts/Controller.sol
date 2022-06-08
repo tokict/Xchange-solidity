@@ -42,14 +42,14 @@ contract Controller is Helpers {
     // Resource bids from buyers
     mapping(uint16 => ResourceBid[]) internal resourceBids;
 
-    // Period trade agreements from buyers
-    mapping(uint16 => BuyerAgreement[]) internal buyerAgreements;
-
-    // Period trade agreements from sellers
-    mapping(uint16 => SellerAgreement[]) internal sellerAgreements;
-
     // Incoming payments from buyers
     mapping(uint16 => IncomingTradePayment[]) internal incomingTradePayments;
+
+    // Trade offers from buyers
+    mapping(bytes32 => TradeOffer[]) public tradeOffers;
+
+    // Trade offers index for buyer
+    mapping(address => bytes32[]) internal buyerOffersIndex;
 
     // Price calculations. The key is a composite made of {periodId}_{resourceId}
     mapping(bytes32 => uint256) public priceCalculations;
@@ -454,71 +454,58 @@ contract Controller is Helpers {
         }
     }
 
-    function buyerAgree(
-        uint16 bidId,
-        uint16 minUnits,
-        uint16 maxUnits
+    function sendTradeOffer(
+        uint16 resourceId,
+        uint32 units,
+        address seller
     ) external {
-        (bool found, uint16 index) = arrayFindBidIndex(
-            bidId,
-            resourceBids[lastPeriodId]
-        );
-        require(found, "Bid not found");
-        ResourceBid memory bid = resourceBids[lastPeriodId][index];
-
-        require(
-            resourceBids[lastPeriodId][index].bidder == msg.sender,
-            "Bid not owned"
-        );
-        bytes32 priceCalcKey = keccak256(
-            abi.encodePacked(lastPeriodId, "_", bid.resourceId)
+        bytes32 sellerKey = keccak256(
+            abi.encodePacked(lastPeriodId, "_", seller)
         );
 
-        uint256 calc = priceCalculations[priceCalcKey];
-        require(calc > 0, "Missing price calc");
-
-        BuyerAgreement memory agree = BuyerAgreement({
-            bidId: bidId,
-            priceCalculationId: priceCalcKey,
-            minUnits: minUnits,
-            maxUnits: maxUnits,
-            time: block.timestamp
+        TradeOffer memory offer = TradeOffer({
+            id: tradeOffers[sellerKey].length,
+            periodId: lastPeriodId,
+            resourceId: resourceId,
+            units: units,
+            seller: seller,
+            buyer: msg.sender,
+            expiresAt: block.timestamp + 1 hours,
+            acceptedAt: 0
         });
+        // Register this offer for the seller
+        tradeOffers[sellerKey].push(offer);
 
-        buyerAgreements[lastPeriodId].push(agree);
+        // Register this offer for the user
+        buyerOffersIndex[msg.sender].push(sellerKey);
     }
 
-    function sellerAgree(
-        uint16 askId,
-        uint16 minUnits,
-        uint16 maxUnits
-    ) external {
-        (bool found, uint16 index) = arrayFindAskIndex(
-            askId,
-            resourceAsks[lastPeriodId]
-        );
-        require(found, "Ask not found");
-        ResourceAsk memory ask = resourceAsks[lastPeriodId][index];
-
-        require(
-            resourceAsks[lastPeriodId][index].asker == msg.sender,
-            "Ask not owned"
-        );
-        bytes32 priceCalcKey = keccak256(
-            abi.encodePacked(lastPeriodId, "_", ask.resourceId)
+    function acceptTradeOffer(uint256 offerId) external {
+        bytes32 sellerKey = keccak256(
+            abi.encodePacked(lastPeriodId, "_", msg.sender)
         );
 
-        uint256 calc = priceCalculations[priceCalcKey];
-        require(calc > 0, "Missing price calc");
+        for (
+            uint256 index = 0;
+            index < tradeOffers[sellerKey].length;
+            index++
+        ) {
+            if (tradeOffers[sellerKey][index].id == offerId) {
+                tradeOffers[sellerKey][index].acceptedAt = block.timestamp;
+            }
+        }
+    }
 
-        SellerAgreement memory agree = SellerAgreement({
-            askId: askId,
-            priceCalculationId: priceCalcKey,
-            minUnits: minUnits,
-            maxUnits: maxUnits,
-            time: block.timestamp
-        });
-        sellerAgreements[lastPeriodId].push(agree);
+    function getTradeOffersForSeller(address seller)
+        public
+        view
+        returns (TradeOffer[] memory offers)
+    {
+        bytes32 sellerKey = keccak256(
+            abi.encodePacked(lastPeriodId, "_", seller)
+        );
+
+        return tradeOffers[sellerKey];
     }
 
     function sendToEscrow(uint256 amount) internal {
