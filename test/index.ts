@@ -81,15 +81,16 @@ async function setup() {
 async function submitAsk(
   contract: Contract,
   resourceId: number,
-  units: number,
+  minUnits: number,
+  maxUnits: number,
   askPPU: BigNumber
 ) {
   const fees: FeeStruct[] = await contract.pickFees(true);
   expect(fees).to.have.lengthOf(1);
 
-  const percentageFee = askPPU.mul(units).mul(fees[0].percentage).div(10000);
+  const percentageFee = askPPU.mul(minUnits).mul(fees[0].percentage).div(10000);
 
-  await contract.submitAsk(resourceId, units, 950, askPPU, {
+  await contract.submitAsk(resourceId, minUnits, maxUnits, 950, askPPU, {
     value: percentageFee.add(fees[0].amount),
     gasLimit: 15000000,
   });
@@ -98,19 +99,20 @@ async function submitAsk(
 async function submitBid(
   contract: Contract,
   resourceId: number,
-  units: number,
+  minUnits: number,
+  maxUnits: number,
   bidPPU: BigNumber
 ) {
   // Get fees that will be needed
   const fees: FeeStruct[] = await contract.pickFees(false);
-  const percentageFee = bidPPU.mul(units).mul(fees[0].percentage).div(10000);
+  const percentageFee = bidPPU.mul(minUnits).mul(fees[0].percentage).div(10000);
 
   // Get margin for this bid amount
   const margin: MarginFeeStruct = await contract.pickMarginFee(0, bidPPU);
-  const marginFee = bidPPU.mul(units).mul(margin.percentage).div(10000);
+  const marginFee = bidPPU.mul(minUnits).mul(margin.percentage).div(10000);
 
   // Submit the bid
-  await contract.submitBid(resourceId, units, 850, bidPPU, {
+  await contract.submitBid(resourceId, minUnits, maxUnits, 850, bidPPU, {
     value: percentageFee.add(fees[0].amount).add(marginFee),
     gasLimit: 15000000,
   });
@@ -165,13 +167,15 @@ describe("Controller", async function () {
   it("ASK - Should allow seller to submit an ASK during interval, apply proper fees", async function () {
     const { controller, seller1, treasury } = await setup();
     const connected = controller.connect(seller1);
-    const units = 111;
+    const minUnits = 111;
+    const maxUnits = 150;
     const askPPU = ethers.utils.parseEther("0.1");
-    await submitAsk(connected, 0, units, askPPU);
+    await submitAsk(connected, 0, minUnits, maxUnits, askPPU);
 
     const asks: ResourceAskStruct[] = await connected.getAsks(0);
     // Check if the ask was saved
-    expect(asks[0]).to.have.property("units", units);
+    expect(asks[0]).to.have.property("minUnits", minUnits);
+    expect(asks[0]).to.have.property("maxUnits", maxUnits);
     expect(asks[0]).to.have.property("purity", 950);
     expect(asks[0]).to.have.property("resourceId", 0);
     expect(asks[0]).to.have.property("asker", seller1.address.toString());
@@ -186,16 +190,18 @@ describe("Controller", async function () {
   it("BID - Should allow buyer to submit a BID during interval, apply proper fees", async function () {
     const { controller, buyer1, treasury, escrow } = await setup();
     const connected = controller.connect(buyer1);
-    const units = 90;
+    const minUnits = 90;
+    const maxUnits = 100;
     const bidPPU = ethers.utils.parseEther("0.11");
 
-    await submitBid(connected, 0, units, bidPPU);
+    await submitBid(connected, 0, minUnits, maxUnits, bidPPU);
 
     // Get period bids
     const bids: ResourceBidStruct[] = await connected.getBids(0);
 
     // Check if the bid was saved
-    expect(bids[0]).to.have.property("units", units);
+    expect(bids[0]).to.have.property("minUnits", minUnits);
+    expect(bids[0]).to.have.property("maxUnits", maxUnits);
     expect(bids[0]).to.have.property("purity", 850);
     expect(bids[0]).to.have.property("resourceId", 0);
     expect(bids[0]).to.have.property("bidder", buyer1.address.toString());
@@ -221,13 +227,13 @@ describe("Controller", async function () {
     const bid2PPU = ethers.utils.parseEther("0.08");
 
     const seller1Con = controller.connect(seller1);
-    await submitAsk(seller1Con, 0, 100, ask1PPU);
+    await submitAsk(seller1Con, 0, 100, 150, ask1PPU);
     const seller2Con = controller.connect(seller2);
-    await submitAsk(seller2Con, 0, 100, ask2PPU);
+    await submitAsk(seller2Con, 0, 100, 150, ask2PPU);
     const buyer1Con = controller.connect(buyer1);
-    await submitBid(buyer1Con, 0, 100, bid1PPU);
+    await submitBid(buyer1Con, 0, 90, 120, bid1PPU);
     const buyer2Con = controller.connect(buyer2);
-    await submitBid(buyer2Con, 0, 100, bid2PPU);
+    await submitBid(buyer2Con, 0, 90, 120, bid2PPU);
 
     const bids: ResourceBidStruct[] = await seller1Con.getBids(0);
     expect(bids).to.have.lengthOf(2);
@@ -247,9 +253,11 @@ describe("Controller", async function () {
 
     expect(price).to.be.equal(BigNumber.from("107500000000000000"));
 
-    await expect(seller1Con.sellerAgree(asks[0].id, asks[0].units)).not.to.be
-      .reverted;
-    await expect(buyer1Con.buyerAgree(bids[0].id, bids[0].units)).not.to.be
-      .reverted;
+    await expect(
+      seller1Con.sellerAgree(asks[0].id, asks[0].minUnits, asks[0].maxUnits)
+    ).not.to.be.reverted;
+    await expect(
+      buyer1Con.buyerAgree(bids[0].id, bids[0].minUnits, bids[0].maxUnits)
+    ).not.to.be.reverted;
   });
 });

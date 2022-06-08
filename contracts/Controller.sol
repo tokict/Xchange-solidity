@@ -222,12 +222,13 @@ contract Controller is Helpers {
      */
     function submitAsk(
         uint16 resourceId,
-        uint16 units,
+        uint16 minUnits,
+        uint16 maxUnits,
         uint16 purity,
         uint256 askPPU
     ) external payable {
         require(purity < 1000, "Invalid purity");
-        require(units > 0, "Invalid units");
+        require(minUnits > 0 && maxUnits > 0, "Invalid units");
         require(askPPU > 0, "Invalid ask PPU");
 
         require(
@@ -238,7 +239,8 @@ contract Controller is Helpers {
             id: 1,
             resourceId: resourceId,
             asker: msg.sender,
-            units: units,
+            minUnits: minUnits,
+            maxUnits: maxUnits,
             purity: purity,
             askPPU: askPPU,
             appliedFeeIds: new uint16[](1)
@@ -256,7 +258,7 @@ contract Controller is Helpers {
             feeAmount =
                 feeAmount +
                 calculatePercentage(
-                    ask.askPPU * ask.units,
+                    ask.askPPU * ask.minUnits,
                     pickedFees[i].percentage
                 );
         }
@@ -295,12 +297,13 @@ contract Controller is Helpers {
      */
     function submitBid(
         uint16 resourceId,
-        uint16 units,
+        uint16 minUnits,
+        uint16 maxUnits,
         uint16 purity,
         uint256 bidPPU
     ) external payable {
         require(purity < 1000, "Invalid purity");
-        require(units > 0, "Invalid units");
+        require(minUnits > 0 && maxUnits > 0, "Invalid units");
         require(bidPPU > 0, "Invalid ask PPU");
         require(
             resourceId >= 0 && resourceId < resources.length,
@@ -310,7 +313,8 @@ contract Controller is Helpers {
             id: 1,
             resourceId: resourceId,
             bidder: msg.sender,
-            units: units,
+            minUnits: minUnits,
+            maxUnits: maxUnits,
             purity: purity,
             bidPPU: bidPPU,
             appliedFeeIds: new uint16[](1),
@@ -327,7 +331,7 @@ contract Controller is Helpers {
         MarginFee memory marginFee = pickMarginFee(bid.id, bid.bidPPU);
         bid.marginFeeId = marginFee.id;
         uint256 marginAmount = calculatePercentage(
-            bid.bidPPU * bid.units,
+            bid.bidPPU * bid.minUnits,
             marginFee.percentage
         );
         for (uint8 i = 0; i < bid.appliedFeeIds.length; i++) {
@@ -335,7 +339,7 @@ contract Controller is Helpers {
             feeAmount =
                 feeAmount +
                 calculatePercentage(
-                    bid.bidPPU * bid.units,
+                    bid.bidPPU * bid.minUnits,
                     pickedFees[i].percentage
                 );
         }
@@ -450,7 +454,11 @@ contract Controller is Helpers {
         }
     }
 
-    function buyerAgree(uint16 bidId, uint16 units) external {
+    function buyerAgree(
+        uint16 bidId,
+        uint16 minUnits,
+        uint16 maxUnits
+    ) external {
         (bool found, uint16 index) = arrayFindBidIndex(
             bidId,
             resourceBids[lastPeriodId]
@@ -472,14 +480,19 @@ contract Controller is Helpers {
         BuyerAgreement memory agree = BuyerAgreement({
             bidId: bidId,
             priceCalculationId: priceCalcKey,
-            units: units,
+            minUnits: minUnits,
+            maxUnits: maxUnits,
             time: block.timestamp
         });
 
         buyerAgreements[lastPeriodId].push(agree);
     }
 
-    function sellerAgree(uint16 askId, uint16 units) external {
+    function sellerAgree(
+        uint16 askId,
+        uint16 minUnits,
+        uint16 maxUnits
+    ) external {
         (bool found, uint16 index) = arrayFindAskIndex(
             askId,
             resourceAsks[lastPeriodId]
@@ -501,7 +514,8 @@ contract Controller is Helpers {
         SellerAgreement memory agree = SellerAgreement({
             askId: askId,
             priceCalculationId: priceCalcKey,
-            units: units,
+            minUnits: minUnits,
+            maxUnits: maxUnits,
             time: block.timestamp
         });
         sellerAgreements[lastPeriodId].push(agree);

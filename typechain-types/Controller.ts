@@ -116,7 +116,8 @@ export type ResourceAskStruct = {
   id: BigNumberish;
   resourceId: BigNumberish;
   asker: string;
-  units: BigNumberish;
+  minUnits: BigNumberish;
+  maxUnits: BigNumberish;
   purity: BigNumberish;
   askPPU: BigNumberish;
   appliedFeeIds: BigNumberish[];
@@ -128,13 +129,15 @@ export type ResourceAskStructOutput = [
   string,
   number,
   number,
+  number,
   BigNumber,
   number[]
 ] & {
   id: number;
   resourceId: number;
   asker: string;
-  units: number;
+  minUnits: number;
+  maxUnits: number;
   purity: number;
   askPPU: BigNumber;
   appliedFeeIds: number[];
@@ -144,7 +147,8 @@ export type ResourceBidStruct = {
   id: BigNumberish;
   bidder: string;
   resourceId: BigNumberish;
-  units: BigNumberish;
+  minUnits: BigNumberish;
+  maxUnits: BigNumberish;
   purity: BigNumberish;
   bidPPU: BigNumberish;
   appliedFeeIds: BigNumberish[];
@@ -157,6 +161,7 @@ export type ResourceBidStructOutput = [
   number,
   number,
   number,
+  number,
   BigNumber,
   number[],
   number
@@ -164,7 +169,8 @@ export type ResourceBidStructOutput = [
   id: number;
   bidder: string;
   resourceId: number;
-  units: number;
+  minUnits: number;
+  maxUnits: number;
   purity: number;
   bidPPU: BigNumber;
   appliedFeeIds: number[];
@@ -177,7 +183,7 @@ export interface ControllerInterface extends utils.Interface {
     "addSeller(address)": FunctionFragment;
     "askFees(uint256)": FunctionFragment;
     "bidFees(uint256)": FunctionFragment;
-    "buyerAgree(uint16,uint16)": FunctionFragment;
+    "buyerAgree(uint16,uint16,uint16)": FunctionFragment;
     "calculatePercentage(uint256,uint16)": FunctionFragment;
     "calculatePrice()": FunctionFragment;
     "getAsks(uint16)": FunctionFragment;
@@ -196,12 +202,12 @@ export interface ControllerInterface extends utils.Interface {
     "priceCalculations(bytes32)": FunctionFragment;
     "removeBuyer(address)": FunctionFragment;
     "removeSeller(address)": FunctionFragment;
-    "sellerAgree(uint16,uint16)": FunctionFragment;
+    "sellerAgree(uint16,uint16,uint16)": FunctionFragment;
     "setEscrow(address)": FunctionFragment;
     "setOwner(address)": FunctionFragment;
     "setTreasury(address)": FunctionFragment;
-    "submitAsk(uint16,uint16,uint16,uint256)": FunctionFragment;
-    "submitBid(uint16,uint16,uint16,uint256)": FunctionFragment;
+    "submitAsk(uint16,uint16,uint16,uint16,uint256)": FunctionFragment;
+    "submitBid(uint16,uint16,uint16,uint16,uint256)": FunctionFragment;
   };
 
   getFunction(
@@ -249,7 +255,7 @@ export interface ControllerInterface extends utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "buyerAgree",
-    values: [BigNumberish, BigNumberish]
+    values: [BigNumberish, BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "calculatePercentage",
@@ -316,18 +322,30 @@ export interface ControllerInterface extends utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "sellerAgree",
-    values: [BigNumberish, BigNumberish]
+    values: [BigNumberish, BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "setEscrow", values: [string]): string;
   encodeFunctionData(functionFragment: "setOwner", values: [string]): string;
   encodeFunctionData(functionFragment: "setTreasury", values: [string]): string;
   encodeFunctionData(
     functionFragment: "submitAsk",
-    values: [BigNumberish, BigNumberish, BigNumberish, BigNumberish]
+    values: [
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "submitBid",
-    values: [BigNumberish, BigNumberish, BigNumberish, BigNumberish]
+    values: [
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish
+    ]
   ): string;
 
   decodeFunctionResult(functionFragment: "addBuyer", data: BytesLike): Result;
@@ -470,7 +488,8 @@ export interface Controller extends BaseContract {
 
     buyerAgree(
       bidId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -543,7 +562,8 @@ export interface Controller extends BaseContract {
 
     sellerAgree(
       askId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -564,7 +584,8 @@ export interface Controller extends BaseContract {
 
     submitAsk(
       resourceId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       purity: BigNumberish,
       askPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
@@ -572,7 +593,8 @@ export interface Controller extends BaseContract {
 
     submitBid(
       resourceId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
@@ -617,7 +639,8 @@ export interface Controller extends BaseContract {
 
   buyerAgree(
     bidId: BigNumberish,
-    units: BigNumberish,
+    minUnits: BigNumberish,
+    maxUnits: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -690,7 +713,8 @@ export interface Controller extends BaseContract {
 
   sellerAgree(
     askId: BigNumberish,
-    units: BigNumberish,
+    minUnits: BigNumberish,
+    maxUnits: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -711,7 +735,8 @@ export interface Controller extends BaseContract {
 
   submitAsk(
     resourceId: BigNumberish,
-    units: BigNumberish,
+    minUnits: BigNumberish,
+    maxUnits: BigNumberish,
     purity: BigNumberish,
     askPPU: BigNumberish,
     overrides?: PayableOverrides & { from?: string | Promise<string> }
@@ -719,7 +744,8 @@ export interface Controller extends BaseContract {
 
   submitBid(
     resourceId: BigNumberish,
-    units: BigNumberish,
+    minUnits: BigNumberish,
+    maxUnits: BigNumberish,
     purity: BigNumberish,
     bidPPU: BigNumberish,
     overrides?: PayableOverrides & { from?: string | Promise<string> }
@@ -758,7 +784,8 @@ export interface Controller extends BaseContract {
 
     buyerAgree(
       bidId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -823,7 +850,8 @@ export interface Controller extends BaseContract {
 
     sellerAgree(
       askId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -835,7 +863,8 @@ export interface Controller extends BaseContract {
 
     submitAsk(
       resourceId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       purity: BigNumberish,
       askPPU: BigNumberish,
       overrides?: CallOverrides
@@ -843,7 +872,8 @@ export interface Controller extends BaseContract {
 
     submitBid(
       resourceId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: CallOverrides
@@ -869,7 +899,8 @@ export interface Controller extends BaseContract {
 
     buyerAgree(
       bidId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -939,7 +970,8 @@ export interface Controller extends BaseContract {
 
     sellerAgree(
       askId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -960,7 +992,8 @@ export interface Controller extends BaseContract {
 
     submitAsk(
       resourceId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       purity: BigNumberish,
       askPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
@@ -968,7 +1001,8 @@ export interface Controller extends BaseContract {
 
     submitBid(
       resourceId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
@@ -998,7 +1032,8 @@ export interface Controller extends BaseContract {
 
     buyerAgree(
       bidId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -1077,7 +1112,8 @@ export interface Controller extends BaseContract {
 
     sellerAgree(
       askId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -1098,7 +1134,8 @@ export interface Controller extends BaseContract {
 
     submitAsk(
       resourceId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       purity: BigNumberish,
       askPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
@@ -1106,7 +1143,8 @@ export interface Controller extends BaseContract {
 
     submitBid(
       resourceId: BigNumberish,
-      units: BigNumberish,
+      minUnits: BigNumberish,
+      maxUnits: BigNumberish,
       purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
