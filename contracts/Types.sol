@@ -4,6 +4,7 @@ pragma solidity ^0.8.9;
 struct ConstructorParams {
     Fee[] askFees;
     Fee[] bidFees;
+    Fee tradeFee;
     MarginFee[] marginFees;
     uint8 numberOfPeriodsPerDay;
     uint8 periodDurationInMinutes;
@@ -12,7 +13,7 @@ struct ConstructorParams {
     address payable treasuryWallet;
     address payable escrowWallet;
     Resource[] resources;
-    address[] sellers;
+    address payable[] sellers;
     address[] buyers;
 }
 /*
@@ -64,24 +65,21 @@ struct ResourceBid {
 
 // This is what we generate when we get payment. We should not have any ghost incoming payments in the system
 struct IncomingTradePayment {
-    uint16 id;
     uint256 transactionTime;
     address buyer;
     uint256 ethTransferred;
-    uint256 offerId;
-    uint8[] appliedFees;
+    uint256 tradeOfferId;
+    uint16 appliedFee;
     uint256 feeAmount;
-    bool useMargin;
 }
 
 // This is what we generate when we release payment
 struct OutgoingPayment {
-    uint16 id;
-    uint16 incomingPaymentId;
+    uint16 tradeOfferId;
     address user;
     uint256 transactionTime;
     uint256 ethTransferred;
-    uint8[] appliedFees;
+    bool isSellerPayment;
     bool isRefund;
     bool isMargin;
 }
@@ -109,7 +107,7 @@ struct TradeOffer {
     uint16 periodId;
     uint16 resourceId;
     uint32 units;
-    address seller;
+    address payable seller;
     address buyer;
     uint256 expiresAt;
     uint256 acceptedAt;

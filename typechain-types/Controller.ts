@@ -72,6 +72,7 @@ export type ResourceStructOutput = [number, string, string, string] & {
 export type ConstructorParamsStruct = {
   askFees: FeeStruct[];
   bidFees: FeeStruct[];
+  tradeFee: FeeStruct;
   marginFees: MarginFeeStruct[];
   numberOfPeriodsPerDay: BigNumberish;
   periodDurationInMinutes: BigNumberish;
@@ -87,6 +88,7 @@ export type ConstructorParamsStruct = {
 export type ConstructorParamsStructOutput = [
   FeeStructOutput[],
   FeeStructOutput[],
+  FeeStructOutput,
   MarginFeeStructOutput[],
   number,
   number,
@@ -100,6 +102,7 @@ export type ConstructorParamsStructOutput = [
 ] & {
   askFees: FeeStructOutput[];
   bidFees: FeeStructOutput[];
+  tradeFee: FeeStructOutput;
   marginFees: MarginFeeStructOutput[];
   numberOfPeriodsPerDay: number;
   periodDurationInMinutes: number;
@@ -217,15 +220,19 @@ export interface ControllerInterface extends utils.Interface {
     "bidFees(uint256)": FunctionFragment;
     "calculatePercentage(uint256,uint16)": FunctionFragment;
     "calculatePrice()": FunctionFragment;
+    "escrowWallet()": FunctionFragment;
     "getAsks(uint16)": FunctionFragment;
     "getBids(uint16)": FunctionFragment;
     "getBuyers()": FunctionFragment;
     "getResources()": FunctionFragment;
     "getSellers()": FunctionFragment;
+    "getTradeOffersForBuyer()": FunctionFragment;
     "getTradeOffersForSeller(address)": FunctionFragment;
     "lastPeriodId()": FunctionFragment;
     "marginFees(uint256)": FunctionFragment;
     "numberOfPeriodsPerDay()": FunctionFragment;
+    "payOffer(address,uint16,uint256)": FunctionFragment;
+    "payOutPaidOffer(address,uint16,uint16)": FunctionFragment;
     "periodDurationInMinutes()": FunctionFragment;
     "periodsStartHour()": FunctionFragment;
     "periodsStartMinute()": FunctionFragment;
@@ -234,13 +241,16 @@ export interface ControllerInterface extends utils.Interface {
     "priceCalculations(bytes32)": FunctionFragment;
     "removeBuyer(address)": FunctionFragment;
     "removeSeller(address)": FunctionFragment;
+    "sendToTreasury(uint256)": FunctionFragment;
     "sendTradeOffer(uint16,uint32,address)": FunctionFragment;
     "setEscrow(address)": FunctionFragment;
     "setOwner(address)": FunctionFragment;
     "setTreasury(address)": FunctionFragment;
     "submitAsk(uint16,uint16,uint16,uint16,uint256)": FunctionFragment;
     "submitBid(uint16,uint16,uint16,uint16,uint256)": FunctionFragment;
+    "tradeFee()": FunctionFragment;
     "tradeOffers(bytes32,uint256)": FunctionFragment;
+    "treasuryWallet()": FunctionFragment;
   };
 
   getFunction(
@@ -252,15 +262,19 @@ export interface ControllerInterface extends utils.Interface {
       | "bidFees"
       | "calculatePercentage"
       | "calculatePrice"
+      | "escrowWallet"
       | "getAsks"
       | "getBids"
       | "getBuyers"
       | "getResources"
       | "getSellers"
+      | "getTradeOffersForBuyer"
       | "getTradeOffersForSeller"
       | "lastPeriodId"
       | "marginFees"
       | "numberOfPeriodsPerDay"
+      | "payOffer"
+      | "payOutPaidOffer"
       | "periodDurationInMinutes"
       | "periodsStartHour"
       | "periodsStartMinute"
@@ -269,13 +283,16 @@ export interface ControllerInterface extends utils.Interface {
       | "priceCalculations"
       | "removeBuyer"
       | "removeSeller"
+      | "sendToTreasury"
       | "sendTradeOffer"
       | "setEscrow"
       | "setOwner"
       | "setTreasury"
       | "submitAsk"
       | "submitBid"
+      | "tradeFee"
       | "tradeOffers"
+      | "treasuryWallet"
   ): FunctionFragment;
 
   encodeFunctionData(
@@ -301,6 +318,10 @@ export interface ControllerInterface extends utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "escrowWallet",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "getAsks",
     values: [BigNumberish]
   ): string;
@@ -318,6 +339,10 @@ export interface ControllerInterface extends utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "getTradeOffersForBuyer",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "getTradeOffersForSeller",
     values: [string]
   ): string;
@@ -332,6 +357,14 @@ export interface ControllerInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "numberOfPeriodsPerDay",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "payOffer",
+    values: [string, BigNumberish, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "payOutPaidOffer",
+    values: [string, BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "periodDurationInMinutes",
@@ -360,6 +393,10 @@ export interface ControllerInterface extends utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(
+    functionFragment: "sendToTreasury",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "sendTradeOffer",
     values: [BigNumberish, BigNumberish, string]
   ): string;
@@ -386,9 +423,14 @@ export interface ControllerInterface extends utils.Interface {
       BigNumberish
     ]
   ): string;
+  encodeFunctionData(functionFragment: "tradeFee", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "tradeOffers",
     values: [BytesLike, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "treasuryWallet",
+    values?: undefined
   ): string;
 
   decodeFunctionResult(
@@ -407,6 +449,10 @@ export interface ControllerInterface extends utils.Interface {
     functionFragment: "calculatePrice",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "escrowWallet",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "getAsks", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "getBids", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "getBuyers", data: BytesLike): Result;
@@ -415,6 +461,10 @@ export interface ControllerInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "getSellers", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getTradeOffersForBuyer",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "getTradeOffersForSeller",
     data: BytesLike
@@ -426,6 +476,11 @@ export interface ControllerInterface extends utils.Interface {
   decodeFunctionResult(functionFragment: "marginFees", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "numberOfPeriodsPerDay",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "payOffer", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "payOutPaidOffer",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -458,6 +513,10 @@ export interface ControllerInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "sendToTreasury",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "sendTradeOffer",
     data: BytesLike
   ): Result;
@@ -469,8 +528,13 @@ export interface ControllerInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "submitAsk", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "submitBid", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "tradeFee", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "tradeOffers",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "treasuryWallet",
     data: BytesLike
   ): Result;
 
@@ -555,6 +619,8 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    escrowWallet(overrides?: CallOverrides): Promise<[string]>;
+
     getAsks(
       periodId: BigNumberish,
       overrides?: CallOverrides
@@ -571,6 +637,12 @@ export interface Controller extends BaseContract {
 
     getSellers(overrides?: CallOverrides): Promise<[string[]]>;
 
+    getTradeOffersForBuyer(
+      overrides?: CallOverrides
+    ): Promise<
+      [TradeOfferStructOutput[]] & { offers: TradeOfferStructOutput[] }
+    >;
+
     getTradeOffersForSeller(
       seller: string,
       overrides?: CallOverrides
@@ -586,6 +658,20 @@ export interface Controller extends BaseContract {
     ): Promise<[number, number] & { id: number; percentage: number }>;
 
     numberOfPeriodsPerDay(overrides?: CallOverrides): Promise<[number]>;
+
+    payOffer(
+      seller: string,
+      periodId: BigNumberish,
+      offerId: BigNumberish,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    payOutPaidOffer(
+      seller: string,
+      periodId: BigNumberish,
+      offerId: BigNumberish,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
     periodDurationInMinutes(overrides?: CallOverrides): Promise<[number]>;
 
@@ -616,6 +702,11 @@ export interface Controller extends BaseContract {
 
     removeSeller(
       seller: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    sendToTreasury(
+      amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -659,6 +750,18 @@ export interface Controller extends BaseContract {
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    tradeFee(
+      overrides?: CallOverrides
+    ): Promise<
+      [number, number, BigNumber, string, boolean] & {
+        id: number;
+        percentage: number;
+        amount: BigNumber;
+        feeType: string;
+        cumulative: boolean;
+      }
+    >;
+
     tradeOffers(
       arg0: BytesLike,
       arg1: BigNumberish,
@@ -684,6 +787,8 @@ export interface Controller extends BaseContract {
         acceptedAt: BigNumber;
       }
     >;
+
+    treasuryWallet(overrides?: CallOverrides): Promise<[string]>;
   };
 
   acceptTradeOffer(
@@ -737,6 +842,8 @@ export interface Controller extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  escrowWallet(overrides?: CallOverrides): Promise<string>;
+
   getAsks(
     periodId: BigNumberish,
     overrides?: CallOverrides
@@ -753,6 +860,10 @@ export interface Controller extends BaseContract {
 
   getSellers(overrides?: CallOverrides): Promise<string[]>;
 
+  getTradeOffersForBuyer(
+    overrides?: CallOverrides
+  ): Promise<TradeOfferStructOutput[]>;
+
   getTradeOffersForSeller(
     seller: string,
     overrides?: CallOverrides
@@ -766,6 +877,20 @@ export interface Controller extends BaseContract {
   ): Promise<[number, number] & { id: number; percentage: number }>;
 
   numberOfPeriodsPerDay(overrides?: CallOverrides): Promise<number>;
+
+  payOffer(
+    seller: string,
+    periodId: BigNumberish,
+    offerId: BigNumberish,
+    overrides?: PayableOverrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  payOutPaidOffer(
+    seller: string,
+    periodId: BigNumberish,
+    offerId: BigNumberish,
+    overrides?: PayableOverrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   periodDurationInMinutes(overrides?: CallOverrides): Promise<number>;
 
@@ -796,6 +921,11 @@ export interface Controller extends BaseContract {
 
   removeSeller(
     seller: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  sendToTreasury(
+    amount: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -839,6 +969,18 @@ export interface Controller extends BaseContract {
     overrides?: PayableOverrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  tradeFee(
+    overrides?: CallOverrides
+  ): Promise<
+    [number, number, BigNumber, string, boolean] & {
+      id: number;
+      percentage: number;
+      amount: BigNumber;
+      feeType: string;
+      cumulative: boolean;
+    }
+  >;
+
   tradeOffers(
     arg0: BytesLike,
     arg1: BigNumberish,
@@ -864,6 +1006,8 @@ export interface Controller extends BaseContract {
       acceptedAt: BigNumber;
     }
   >;
+
+  treasuryWallet(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
     acceptTradeOffer(
@@ -909,6 +1053,8 @@ export interface Controller extends BaseContract {
 
     calculatePrice(overrides?: CallOverrides): Promise<void>;
 
+    escrowWallet(overrides?: CallOverrides): Promise<string>;
+
     getAsks(
       periodId: BigNumberish,
       overrides?: CallOverrides
@@ -925,6 +1071,10 @@ export interface Controller extends BaseContract {
 
     getSellers(overrides?: CallOverrides): Promise<string[]>;
 
+    getTradeOffersForBuyer(
+      overrides?: CallOverrides
+    ): Promise<TradeOfferStructOutput[]>;
+
     getTradeOffersForSeller(
       seller: string,
       overrides?: CallOverrides
@@ -938,6 +1088,20 @@ export interface Controller extends BaseContract {
     ): Promise<[number, number] & { id: number; percentage: number }>;
 
     numberOfPeriodsPerDay(overrides?: CallOverrides): Promise<number>;
+
+    payOffer(
+      seller: string,
+      periodId: BigNumberish,
+      offerId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    payOutPaidOffer(
+      seller: string,
+      periodId: BigNumberish,
+      offerId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     periodDurationInMinutes(overrides?: CallOverrides): Promise<number>;
 
@@ -964,6 +1128,11 @@ export interface Controller extends BaseContract {
     removeBuyer(buyer: string, overrides?: CallOverrides): Promise<void>;
 
     removeSeller(seller: string, overrides?: CallOverrides): Promise<void>;
+
+    sendToTreasury(
+      amount: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     sendTradeOffer(
       resourceId: BigNumberish,
@@ -996,6 +1165,18 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
+    tradeFee(
+      overrides?: CallOverrides
+    ): Promise<
+      [number, number, BigNumber, string, boolean] & {
+        id: number;
+        percentage: number;
+        amount: BigNumber;
+        feeType: string;
+        cumulative: boolean;
+      }
+    >;
+
     tradeOffers(
       arg0: BytesLike,
       arg1: BigNumberish,
@@ -1021,6 +1202,8 @@ export interface Controller extends BaseContract {
         acceptedAt: BigNumber;
       }
     >;
+
+    treasuryWallet(overrides?: CallOverrides): Promise<string>;
   };
 
   filters: {};
@@ -1055,6 +1238,8 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    escrowWallet(overrides?: CallOverrides): Promise<BigNumber>;
+
     getAsks(
       periodId: BigNumberish,
       overrides?: CallOverrides
@@ -1071,6 +1256,8 @@ export interface Controller extends BaseContract {
 
     getSellers(overrides?: CallOverrides): Promise<BigNumber>;
 
+    getTradeOffersForBuyer(overrides?: CallOverrides): Promise<BigNumber>;
+
     getTradeOffersForSeller(
       seller: string,
       overrides?: CallOverrides
@@ -1084,6 +1271,20 @@ export interface Controller extends BaseContract {
     ): Promise<BigNumber>;
 
     numberOfPeriodsPerDay(overrides?: CallOverrides): Promise<BigNumber>;
+
+    payOffer(
+      seller: string,
+      periodId: BigNumberish,
+      offerId: BigNumberish,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    payOutPaidOffer(
+      seller: string,
+      periodId: BigNumberish,
+      offerId: BigNumberish,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
 
     periodDurationInMinutes(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -1111,6 +1312,11 @@ export interface Controller extends BaseContract {
 
     removeSeller(
       seller: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    sendToTreasury(
+      amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -1154,11 +1360,15 @@ export interface Controller extends BaseContract {
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    tradeFee(overrides?: CallOverrides): Promise<BigNumber>;
+
     tradeOffers(
       arg0: BytesLike,
       arg1: BigNumberish,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
+
+    treasuryWallet(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
@@ -1197,6 +1407,8 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
+    escrowWallet(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
     getAsks(
       periodId: BigNumberish,
       overrides?: CallOverrides
@@ -1213,6 +1425,10 @@ export interface Controller extends BaseContract {
 
     getSellers(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
+    getTradeOffersForBuyer(
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     getTradeOffersForSeller(
       seller: string,
       overrides?: CallOverrides
@@ -1227,6 +1443,20 @@ export interface Controller extends BaseContract {
 
     numberOfPeriodsPerDay(
       overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    payOffer(
+      seller: string,
+      periodId: BigNumberish,
+      offerId: BigNumberish,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    payOutPaidOffer(
+      seller: string,
+      periodId: BigNumberish,
+      offerId: BigNumberish,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     periodDurationInMinutes(
@@ -1262,6 +1492,11 @@ export interface Controller extends BaseContract {
 
     removeSeller(
       seller: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    sendToTreasury(
+      amount: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -1305,10 +1540,14 @@ export interface Controller extends BaseContract {
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
+    tradeFee(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
     tradeOffers(
       arg0: BytesLike,
       arg1: BigNumberish,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
+
+    treasuryWallet(overrides?: CallOverrides): Promise<PopulatedTransaction>;
   };
 }

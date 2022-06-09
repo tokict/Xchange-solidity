@@ -40,6 +40,14 @@ async function setup() {
         noCombine: [],
       },
     ],
+    tradeFee: {
+      id: 1,
+      percentage: 100,
+      amount: ethers.utils.parseEther("0.01"),
+      feeType: "bid",
+      cumulative: true,
+      noCombine: [],
+    },
     marginFees: [
       {
         id: 1,
@@ -221,7 +229,8 @@ describe("Controller", async function () {
   });
 
   it("BID - Should calculate average price correctly, take agreements and accept pay", async function () {
-    const { controller, buyer1, buyer2, seller1, seller2 } = await setup();
+    const { controller, buyer1, buyer2, seller1, seller2, treasury, escrow } =
+      await setup();
     const ask1PPU = ethers.utils.parseEther("0.11");
     const ask2PPU = ethers.utils.parseEther("0.15");
     const bid1PPU = ethers.utils.parseEther("0.09");
@@ -235,6 +244,7 @@ describe("Controller", async function () {
     await submitBid(buyer1Con, 0, 90, 120, bid1PPU);
     const buyer2Con = controller.connect(buyer2);
     await submitBid(buyer2Con, 0, 90, 120, bid2PPU);
+    const escrowCon = controller.connect(escrow);
 
     const bids: ResourceBidStruct[] = await seller1Con.getBids(0);
     expect(bids).to.have.lengthOf(2);
@@ -270,5 +280,50 @@ describe("Controller", async function () {
       await seller1Con.getTradeOffersForSeller(seller1.address);
 
     expect(offers2[0].acceptedAt).not.to.equal(BigNumber.from("0"));
+
+    // Get accepted offer for buyer and pay it
+
+    const buyerOffers: TradeOfferStruct[] =
+      await buyer1Con.getTradeOffersForBuyer();
+    expect(buyerOffers).to.have.lengthOf(1);
+
+    const fee: FeeStruct = await controller.tradeFee();
+    const percentageFee = price
+      .mul(buyerOffers[0].units)
+      .mul(fee.percentage)
+      .div(10000);
+
+    const totalToTransfer = price
+      .mul(buyerOffers[0].units)
+      .add(fee.amount)
+      .add(percentageFee);
+    await controller.payOffer(
+      buyerOffers[0].seller,
+      buyerOffers[0].periodId,
+      buyerOffers[0].id,
+      {
+        value: totalToTransfer,
+      }
+    );
+
+    expect(await buyer1Con.provider.getBalance(escrow.address)).to.be.equal(
+      BigNumber.from("10011020500000000000000")
+    );
+
+    await escrowCon.payOutPaidOffer(
+      buyerOffers[0].seller,
+      buyerOffers[0].periodId,
+      buyerOffers[0].id,
+      {
+        value: totalToTransfer,
+        gasLimit: 300000,
+      }
+    );
+    expect(await escrowCon.provider.getBalance(treasury.address)).to.be.equal(
+      BigNumber.from("10000570500000000000000")
+    );
+    expect(await escrowCon.provider.getBalance(seller1.address)).to.be.equal(
+      BigNumber.from("10010629469997253454833")
+    );
   });
 });

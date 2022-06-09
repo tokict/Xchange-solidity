@@ -12,6 +12,10 @@ contract Controller is Helpers {
     Fee[] public bidFees;
     //margin fee required to make a bid
     MarginFee[] public marginFees;
+
+    // bidFee is applied to every submitted BID as tax
+    Fee public tradeFee;
+
     // PERIODS are time slots in which asks and bids can be submitted. After it expires, we make results public and open another round.
     // Yes, I know its all public anyway.
 
@@ -19,6 +23,9 @@ contract Controller is Helpers {
     uint8 public numberOfPeriodsPerDay;
     // How long should each period last
     uint8 public periodDurationInMinutes;
+
+    // The current state of margins
+    mapping(address => uint256) marginAmounts;
 
     // What hour of the day to start period
     uint8 public periodsStartHour;
@@ -29,12 +36,14 @@ contract Controller is Helpers {
 
     // Treasury wallet is to keep collected fees and generally, profit.
     // We don't want to keep ANY funds in the contract in case of hack of my screwup
-    address payable internal treasuryWallet;
+    address payable public treasuryWallet;
     // We keep our clients money in a separate escrow wallet. To send money to sellers, we call a function on contract and the contract proxies it
-    address payable internal escrowWallet;
+    address payable public escrowWallet;
 
     //Array or enabled resources to trade
     Resource[] internal resources;
+
+    IncomingTradePayment[] internal incomingPayments;
 
     // Resource asks from sellers
     mapping(uint16 => ResourceAsk[]) internal resourceAsks;
@@ -54,7 +63,7 @@ contract Controller is Helpers {
     // Price calculations. The key is a composite made of {periodId}_{resourceId}
     mapping(bytes32 => uint256) public priceCalculations;
 
-    // Outgoing payments to sellers
+    // Outgoing payments
     OutgoingPayment[] internal outgoingPayments;
 
     // allowed sellers
@@ -67,10 +76,6 @@ contract Controller is Helpers {
     address private owner;
 
     constructor(ConstructorParams memory params) {
-        console.log("Deploying Controller");
-        require(params.bidFees.length > 0, "No bid fee provided");
-        require(params.askFees.length > 0, "No ask fee provided");
-        require(params.marginFees.length > 0, "No margin fee provided");
         numberOfPeriodsPerDay = params.numberOfPeriodsPerDay;
         periodDurationInMinutes = params.periodDurationInMinutes;
         periodsStartHour = params.periodsStartHour;
@@ -99,6 +104,8 @@ contract Controller is Helpers {
             bidFees.push(params.bidFees[i]);
         }
 
+        tradeFee = params.tradeFee;
+
         for (uint256 i = 0; i < params.marginFees.length; i++) {
             marginFees.push(params.marginFees[i]);
         }
@@ -118,7 +125,13 @@ contract Controller is Helpers {
      * @dev Throws if called by any account other than the seller.
      */
     modifier onlySeller() {
-        require(owner == msg.sender, "Seller: caller is not a seller");
+        bool found = false;
+        for (uint256 index = 0; index < sellers.length; index++) {
+            if (sellers[index] == msg.sender) {
+                found = true;
+            }
+        }
+        require(found, "Seller: caller is not a seller");
         _;
     }
 
@@ -126,7 +139,13 @@ contract Controller is Helpers {
      * @dev Throws if called by any account other than the buyer.
      */
     modifier onlyBuyer() {
-        require(owner == msg.sender, "Buyer: caller is not a buyer");
+        bool found = false;
+        for (uint256 index = 0; index < buyers.length; index++) {
+            if (buyers[index] == msg.sender) {
+                found = true;
+            }
+        }
+        require(found, "Buyer: caller is not a buyer");
         _;
     }
 
@@ -134,7 +153,7 @@ contract Controller is Helpers {
      * @dev Throws if called by any account other than the escrow.
      */
     modifier onlyEscrow() {
-        require(owner == msg.sender, "Escrow: caller is not escrow");
+        require(escrowWallet == msg.sender, "Escrow: caller is not escrow");
         _;
     }
 
@@ -280,7 +299,7 @@ contract Controller is Helpers {
     }
 
     /**
-     *We default to 0 index fee as the default one
+     * We default to 0 index fee as the default one
      */
     function pickMarginFee(uint16 resourceId, uint256 amount)
         public
@@ -330,10 +349,18 @@ contract Controller is Helpers {
         uint256 feeAmount = 0;
         MarginFee memory marginFee = pickMarginFee(bid.id, bid.bidPPU);
         bid.marginFeeId = marginFee.id;
+        // Calculate margin and see if user has already enough on his address
         uint256 marginAmount = calculatePercentage(
             bid.bidPPU * bid.minUnits,
             marginFee.percentage
         );
+        if (marginAmount > 0 && marginAmounts[msg.sender] > 0) {
+            // If the user has more on account than margin for this bid, then he pays 0 margin
+            if (marginAmounts[msg.sender] < marginAmount) {
+                marginAmount = marginAmount - marginAmounts[msg.sender];
+            }
+        }
+
         for (uint8 i = 0; i < bid.appliedFeeIds.length; i++) {
             feeAmount = feeAmount + pickedFees[i].amount;
             feeAmount =
@@ -353,6 +380,9 @@ contract Controller is Helpers {
         if (feeAmount > 0) {
             sendToTreasury(feeAmount); // Breaks if failed
             sendToEscrow(marginAmount); // Breaks if failed
+            marginAmounts[msg.sender] =
+                marginAmounts[msg.sender] +
+                marginAmount;
         }
         resourceBids[0].push(bid);
     }
@@ -457,7 +487,7 @@ contract Controller is Helpers {
     function sendTradeOffer(
         uint16 resourceId,
         uint32 units,
-        address seller
+        address payable seller
     ) external {
         bytes32 sellerKey = keccak256(
             abi.encodePacked(lastPeriodId, "_", seller)
@@ -508,11 +538,110 @@ contract Controller is Helpers {
         return tradeOffers[sellerKey];
     }
 
+    function getTradeOffersForBuyer()
+        public
+        view
+        returns (TradeOffer[] memory offers)
+    {
+        uint16 count = 0;
+        for (
+            uint256 index = 0;
+            index < buyerOffersIndex[msg.sender].length;
+            index++
+        ) {
+            for (
+                uint256 index2 = 0;
+                index2 <
+                tradeOffers[buyerOffersIndex[msg.sender][index]].length;
+                index2++
+            ) {
+                if (
+                    tradeOffers[buyerOffersIndex[msg.sender][index]][index2]
+                        .buyer == msg.sender
+                ) {
+                    count++;
+                }
+            }
+        }
+
+        TradeOffer[] memory buyerOffers = new TradeOffer[](count);
+        uint256 j;
+        for (
+            uint256 index = 0;
+            index < buyerOffersIndex[msg.sender].length;
+            index++
+        ) {
+            for (
+                uint256 index2 = 0;
+                index2 <
+                tradeOffers[buyerOffersIndex[msg.sender][index]].length;
+                index2++
+            ) {
+                if (
+                    tradeOffers[buyerOffersIndex[msg.sender][index]][index2]
+                        .buyer == msg.sender
+                ) {
+                    buyerOffers[j] = tradeOffers[
+                        buyerOffersIndex[msg.sender][index]
+                    ][index2];
+
+                    j++;
+                }
+            }
+        }
+        return buyerOffers;
+    }
+
+    function payOffer(
+        address seller,
+        uint16 periodId,
+        uint256 offerId
+    ) external payable {
+        bytes32 sellerKey = keccak256(abi.encodePacked(periodId, "_", seller));
+
+        for (
+            uint256 index = 0;
+            index < tradeOffers[sellerKey].length;
+            index++
+        ) {
+            if (tradeOffers[sellerKey][index].id == offerId) {
+                uint128 units = tradeOffers[sellerKey][index].units;
+                uint256 PPU = priceCalculations[
+                    keccak256(
+                        abi.encodePacked(
+                            tradeOffers[sellerKey][index].periodId,
+                            "_",
+                            tradeOffers[sellerKey][index].resourceId
+                        )
+                    )
+                ];
+
+                uint256 feeAmount = tradeFee.amount +
+                    calculatePercentage(PPU * units, tradeFee.percentage);
+                uint256 totalPrice = units * PPU + feeAmount;
+                uint256 toPay = totalPrice - marginAmounts[msg.sender];
+                require(msg.value >= toPay, "Not enough ETH transferred");
+                sendToEscrow(toPay);
+                marginAmounts[msg.sender] = 0; // Margin account should never have more than purchase and should end up empty after purchase
+                incomingPayments.push(
+                    IncomingTradePayment({
+                        transactionTime: block.timestamp,
+                        buyer: msg.sender,
+                        ethTransferred: msg.value,
+                        tradeOfferId: offerId,
+                        appliedFee: tradeFee.id,
+                        feeAmount: feeAmount
+                    })
+                );
+            }
+        }
+    }
+
     function sendToEscrow(uint256 amount) internal {
         escrowWallet.transfer(amount);
     }
 
-    function sendToTreasury(uint256 amount) internal {
+    function sendToTreasury(uint256 amount) public {
         treasuryWallet.transfer(amount);
     }
 
@@ -523,6 +652,55 @@ contract Controller is Helpers {
         seller.transfer(
             receivedPayment.ethTransferred - receivedPayment.feeAmount
         );
+    }
+
+    function payOutPaidOffer(
+        address seller,
+        uint16 periodId,
+        uint16 offerId
+    ) external payable onlyEscrow {
+        bytes32 sellerKey = keccak256(abi.encodePacked(periodId, "_", seller));
+
+        for (
+            uint256 index = 0;
+            index < tradeOffers[sellerKey].length;
+            index++
+        ) {
+            TradeOffer memory offer = tradeOffers[sellerKey][index];
+            if (offer.id == offerId) {
+                uint256 PPU = priceCalculations[
+                    keccak256(
+                        abi.encodePacked(offer.periodId, "_", offer.resourceId)
+                    )
+                ];
+
+                // Buyer pays seller ask and our trade fee which we send to treasury
+                uint256 feeAmount = tradeFee.amount +
+                    calculatePercentage(PPU * offer.units, tradeFee.percentage);
+
+                offer.seller.transfer(offer.units * PPU);
+
+                outgoingPayments.push(
+                    OutgoingPayment({
+                        transactionTime: block.timestamp,
+                        user: offer.seller,
+                        ethTransferred: offer.units * PPU,
+                        tradeOfferId: offerId,
+                        isSellerPayment: true,
+                        isRefund: false,
+                        isMargin: false
+                    })
+                );
+
+                require(
+                    (offer.units * PPU) + feeAmount <= msg.value,
+                    "Insufficient ETH for payment"
+                );
+                console.log((offer.units * PPU) + feeAmount);
+                console.log(msg.value);
+                sendToTreasury(feeAmount);
+            }
+        }
     }
 
     function returnToBuyer(
