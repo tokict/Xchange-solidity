@@ -97,7 +97,8 @@ struct Fee {
 // All fees including margin
 struct MarginFee {
     uint16 id;
-    uint8 percentage;
+    uint16 percentOverMedian;
+    uint16 percentage;
 }
 
 // Trade offer is a time limited matching on price and quantity between a buyer and seller;

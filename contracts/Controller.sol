@@ -241,8 +241,8 @@ contract Controller is Helpers {
      */
     function submitAsk(
         uint16 resourceId,
-        uint16 minUnits,
-        uint16 maxUnits,
+        uint32 minUnits,
+        uint32 maxUnits,
         uint16 purity,
         uint256 askPPU
     ) external payable {
@@ -299,25 +299,40 @@ contract Controller is Helpers {
     }
 
     /**
-     * We default to 0 index fee as the default one
+     * We see which is the last triggered and return that one. We expect them to be ordered by percentOverMedian cardinality
      */
-    function pickMarginFee(uint16 resourceId, uint256 amount)
+    function pickMarginFee(uint16 resourceId, uint256 PPU)
         public
-        view
-        returns (MarginFee memory)
+        returns (MarginFee memory fee)
     {
-        MarginFee memory returnArr = marginFees[0];
+        uint256 averageResurceBid = calculatePrice(resourceId, true);
 
-        return returnArr;
+        uint256 diff = averageResurceBid > 0
+            ? (averageResurceBid - PPU >= 0)
+                ? averageResurceBid - PPU
+                : PPU - averageResurceBid
+            : 0;
+
+        uint256 percentOver = diff > 0 ? (diff / averageResurceBid) * 100 : 0;
+
+        MarginFee[] memory fees = new MarginFee[](1);
+
+        for (uint256 index = 0; index < marginFees.length; index++) {
+            if (marginFees[index].percentOverMedian <= percentOver) {
+                fees[0] = marginFees[index];
+            }
+        }
+
+        return fees[0];
     }
 
-    /**  The buyer submits bids here.
+    /** The buyer submits bids here.
      * Must be within period
      */
     function submitBid(
         uint16 resourceId,
-        uint16 minUnits,
-        uint16 maxUnits,
+        uint32 minUnits,
+        uint32 maxUnits,
         uint16 purity,
         uint256 bidPPU
     ) external payable {
@@ -328,6 +343,7 @@ contract Controller is Helpers {
             resourceId >= 0 && resourceId < resources.length,
             "Invalid resource"
         );
+
         ResourceBid memory bid = ResourceBid({
             id: 1,
             resourceId: resourceId,
@@ -384,7 +400,19 @@ contract Controller is Helpers {
                 marginAmounts[msg.sender] +
                 marginAmount;
         }
-        resourceBids[0].push(bid);
+        uint16 userBidIndex = 0;
+        bool userBidFound = false;
+        for (uint16 index = 0; index < resourceBids[0].length; index++) {
+            if (resourceBids[0][index].bidder == msg.sender) {
+                userBidFound = true;
+                userBidIndex = index;
+            }
+        }
+        if (userBidFound) {
+            resourceBids[0][userBidIndex] = bid;
+        } else {
+            resourceBids[0].push(bid);
+        }
     }
 
     function getBids(uint16 periodId)
@@ -397,7 +425,10 @@ contract Controller is Helpers {
     }
 
     /** Calculate average price for all resources in period */
-    function calculatePrice() public {
+    function calculatePrice(uint16 resourceId, bool single)
+        public
+        returns (uint256 price)
+    {
         // Array index corresponds to resource id
         uint256[] memory averageResourceAskPPU = new uint256[](
             resources.length
@@ -444,7 +475,9 @@ contract Controller is Helpers {
             uint256 sum = averageResourceAskPPU[index3];
             uint16 nrOfAsks = resourceNrAsks[index3];
 
-            averageResourceAskPPU[index3] = sum / nrOfAsks;
+            averageResourceAskPPU[index3] = sum > 0 && nrOfAsks > 0
+                ? sum / nrOfAsks
+                : 0;
         }
 
         // Calculate prices and save BIDS
@@ -455,9 +488,11 @@ contract Controller is Helpers {
         ) {
             uint256 sum = averageResourceBidPPU[index5];
 
-            uint16 nrOfBids = resourceNrBids[index5];
+            uint256 nrOfBids = resourceNrBids[index5];
 
-            averageResourceBidPPU[index5] = sum / nrOfBids;
+            averageResourceBidPPU[index5] = sum > 0 && nrOfBids > 0
+                ? sum / nrOfBids
+                : 0;
         }
 
         for (
@@ -474,14 +509,22 @@ contract Controller is Helpers {
                 uint256 avgBidPPU = averageResourceBidPPU[index6];
 
                 uint256 averagePrice = (avgAskPPU + avgBidPPU) / 2;
-
-                if (averagePrice > 0) {
-                    priceCalculations[
-                        keccak256(abi.encodePacked(lastPeriodId, "_", index6))
-                    ] = averagePrice;
+                // If there is resourceId, it means we just need currewnt price or a specific resource
+                if (single) {
+                    return index6 == resourceId ? averagePrice : 0;
+                } else {
+                    if (averagePrice > 0) {
+                        priceCalculations[
+                            keccak256(
+                                abi.encodePacked(lastPeriodId, "_", index6)
+                            )
+                        ] = averagePrice;
+                    }
                 }
             }
         }
+
+        return 0;
     }
 
     function sendTradeOffer(
@@ -696,19 +739,14 @@ contract Controller is Helpers {
                     (offer.units * PPU) + feeAmount <= msg.value,
                     "Insufficient ETH for payment"
                 );
-                console.log((offer.units * PPU) + feeAmount);
-                console.log(msg.value);
+
                 sendToTreasury(feeAmount);
             }
         }
     }
 
-    function returnToBuyer(
-        address payable buyer,
-        IncomingTradePayment memory receivedPayment
-    ) internal {
-        buyer.transfer(
-            receivedPayment.ethTransferred - receivedPayment.feeAmount
-        );
+    function returnMarginToBuyer(address payable buyer) internal {
+        marginAmounts[buyer] = 0;
+        buyer.transfer(marginAmounts[buyer]);
     }
 }

@@ -49,10 +49,8 @@ async function setup() {
       noCombine: [],
     },
     marginFees: [
-      {
-        id: 1,
-        percentage: 100,
-      },
+      { id: 1, percentOverMedian: 25, percentage: 5000 },
+      { id: 2, percentOverMedian: 50, percentage: 30000 },
     ],
     numberOfPeriodsPerDay: 2,
     periodDurationInMinutes: 0,
@@ -118,7 +116,10 @@ async function submitBid(
 
   // Get margin for this bid amount
   const margin: MarginFeeStruct = await contract.pickMarginFee(0, bidPPU);
-  const marginFee = bidPPU.mul(minUnits).mul(margin.percentage).div(10000);
+
+  const marginFee = margin.percentage
+    ? bidPPU.mul(minUnits).mul(margin.percentage).div(10000)
+    : bidPPU.mul(minUnits);
 
   // Submit the bid
   await contract.submitBid(resourceId, minUnits, maxUnits, 850, bidPPU, {
@@ -196,7 +197,7 @@ describe("Controller", async function () {
     );
   });
 
-  it("BID - Should allow buyer to submit a BID during interval, apply proper fees", async function () {
+  it("BID1 - Should allow buyer to submit a BID during interval, apply proper fees", async function () {
     const { controller, buyer1, treasury, escrow } = await setup();
     const connected = controller.connect(buyer1);
     const minUnits = 90;
@@ -221,14 +222,9 @@ describe("Controller", async function () {
     expect(await connected.provider.getBalance(treasury.address)).to.be.equal(
       BigNumber.from("10000109000000000000000")
     );
-    expect(await connected.provider.getBalance(escrow.address)).to.be.equal(
-      BigNumber.from("10000099000000000000000")
-    );
-
-    // Add one more ask and bid and check if avg price is being calculated correctly
   });
 
-  it("BID - Should calculate average price correctly, take agreements and accept pay", async function () {
+  it("BID2 - Should calculate average price correctly, take agreements and accept pay", async function () {
     const { controller, buyer1, buyer2, seller1, seller2, treasury, escrow } =
       await setup();
     const ask1PPU = ethers.utils.parseEther("0.11");
@@ -252,10 +248,10 @@ describe("Controller", async function () {
     expect(asks).to.have.lengthOf(2);
 
     //Trigger price calculation
-    await seller1Con.calculatePrice({
+    await seller1Con.calculatePrice(0, false, {
       gasLimit: 30000000,
     });
-
+    //const bidFee = await connected.pickMarginFee(0, bidPPU);
     const price = await seller1Con.priceCalculations(
       ethers.utils.keccak256(
         ethers.utils.solidityPack(["uint16", "string", "uint16"], [0, "_", 0])
@@ -307,7 +303,7 @@ describe("Controller", async function () {
     );
 
     expect(await buyer1Con.provider.getBalance(escrow.address)).to.be.equal(
-      BigNumber.from("10011020500000000000000")
+      BigNumber.from("10010867500000000000000")
     );
 
     await escrowCon.payOutPaidOffer(
@@ -323,7 +319,7 @@ describe("Controller", async function () {
       BigNumber.from("10000570500000000000000")
     );
     expect(await escrowCon.provider.getBalance(seller1.address)).to.be.equal(
-      BigNumber.from("10010629469997253454833")
+      BigNumber.from("10010629481703589094900")
     );
   });
 });
