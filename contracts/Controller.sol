@@ -6,6 +6,12 @@ import "./Types.sol";
 import "./Helpers.sol";
 
 contract Controller is Helpers {
+    // Can BIDS and ASKS be submitted
+    bool private submissionsAllowed;
+
+    // Is thrading period active?
+    bool private tradingAllowed;
+
     // askFee is applied to every submitted ASK as tax
     Fee[] public askFees;
     // bidFee is applied to every submitted BID as tax
@@ -67,15 +73,17 @@ contract Controller is Helpers {
     OutgoingPayment[] internal outgoingPayments;
 
     // allowed sellers
-    address[] internal sellers;
+    address payable[] internal sellers;
 
     // allowed buyers
-    address[] internal buyers;
+    address payable[] internal buyers;
 
     // owner
     address private owner;
 
     constructor(ConstructorParams memory params) {
+        submissionsAllowed = false;
+        tradingAllowed = false;
         numberOfPeriodsPerDay = params.numberOfPeriodsPerDay;
         periodDurationInMinutes = params.periodDurationInMinutes;
         periodsStartHour = params.periodsStartHour;
@@ -161,6 +169,22 @@ contract Controller is Helpers {
         owner = newOwner;
     }
 
+    // Allow submitting BIDS and ASKS or not
+    function toggleSubmissionPermission(bool changePeriodId)
+        external
+        onlyOwner
+    {
+        if (changePeriodId) {
+            lastPeriodId++;
+        }
+        submissionsAllowed = true;
+    }
+
+    // Turn trading on or off
+    function toggleTradingAllowed() external onlyOwner {
+        tradingAllowed = true;
+    }
+
     function getResources()
         external
         view
@@ -178,7 +202,7 @@ contract Controller is Helpers {
         treasuryWallet = newTreasury;
     }
 
-    function addBuyer(address buyer) external onlyOwner {
+    function addBuyer(address payable buyer) external onlyOwner {
         // If the buyer is not there or is there but is disabled, enable or add it
         (bool found, uint256 index) = arrayFindAddressIndex(buyer, buyers);
         if (!found) {
@@ -188,7 +212,7 @@ contract Controller is Helpers {
         }
     }
 
-    function removeBuyer(address buyer) external onlyOwner {
+    function removeBuyer(address payable buyer) external onlyOwner {
         (bool found, uint256 index) = arrayFindAddressIndex(buyer, buyers);
         if (found) {
             buyers[index] = buyers[buyers.length - 1];
@@ -198,11 +222,16 @@ contract Controller is Helpers {
         }
     }
 
-    function getBuyers() external view onlyOwner returns (address[] memory) {
+    function getBuyers()
+        external
+        view
+        onlyOwner
+        returns (address payable[] memory)
+    {
         return buyers;
     }
 
-    function addSeller(address seller) external onlyOwner {
+    function addSeller(address payable seller) external onlyOwner {
         // If the seller is not there or is there but is disabled, enable or add it
         (bool found, uint256 index) = arrayFindAddressIndex(seller, sellers);
         if (!found) {
@@ -212,7 +241,7 @@ contract Controller is Helpers {
         }
     }
 
-    function removeSeller(address seller) external onlyOwner {
+    function removeSeller(address payable seller) external onlyOwner {
         (bool found, uint256 index) = arrayFindAddressIndex(seller, sellers);
         if (found) {
             sellers[index] = sellers[sellers.length - 1];
@@ -222,7 +251,12 @@ contract Controller is Helpers {
         }
     }
 
-    function getSellers() external view onlyOwner returns (address[] memory) {
+    function getSellers()
+        external
+        view
+        onlyOwner
+        returns (address payable[] memory)
+    {
         return sellers;
     }
 
@@ -246,6 +280,7 @@ contract Controller is Helpers {
         uint16 purity,
         uint256 askPPU
     ) external payable {
+        require(submissionsAllowed, "Submitting forbidden");
         require(purity < 1000, "Invalid purity");
         require(minUnits > 0 && maxUnits > 0, "Invalid units");
         require(askPPU > 0, "Invalid ask PPU");
@@ -289,6 +324,7 @@ contract Controller is Helpers {
         resourceAsks[0].push(ask);
     }
 
+    // Get all asks in a period
     function getAsks(uint16 periodId)
         public
         view
@@ -337,6 +373,7 @@ contract Controller is Helpers {
         uint256 bidPPU
     ) external payable {
         require(purity < 1000, "Invalid purity");
+        require(submissionsAllowed, "Submitting forbidden");
         require(minUnits > 0 && maxUnits > 0, "Invalid units");
         require(bidPPU > 0, "Invalid ask PPU");
         require(
@@ -357,7 +394,6 @@ contract Controller is Helpers {
         });
 
         Fee[] memory pickedFees = pickFees(true);
-        uint16[] memory appliedFees = new uint16[](1);
         for (uint16 index = 0; index < pickedFees.length; index++) {
             bid.appliedFeeIds[index] = pickedFees[index].id;
         }
@@ -415,6 +451,7 @@ contract Controller is Helpers {
         }
     }
 
+    // Get all bids within a period
     function getBids(uint16 periodId)
         public
         view
@@ -424,11 +461,13 @@ contract Controller is Helpers {
         return bids;
     }
 
-    /** Calculate average price for all resources in period */
+    /** Calculate average price for all resources in last period */
     function calculatePrice(uint16 resourceId, bool single)
         public
         returns (uint256 price)
     {
+        require(!submissionsAllowed, "Submitting still open");
+        require(!tradingAllowed, "Cannot calculate while trading");
         // Array index corresponds to resource id
         uint256[] memory averageResourceAskPPU = new uint256[](
             resources.length
@@ -527,11 +566,15 @@ contract Controller is Helpers {
         return 0;
     }
 
+    // Buyer calls to offer a trade on the calculated price for a resource
     function sendTradeOffer(
         uint16 resourceId,
         uint32 units,
         address payable seller
     ) external {
+        require(!submissionsAllowed, "Submitting is still allowed");
+        require(tradingAllowed, "Trading forbidden");
+
         bytes32 sellerKey = keccak256(
             abi.encodePacked(lastPeriodId, "_", seller)
         );
@@ -553,7 +596,10 @@ contract Controller is Helpers {
         buyerOffersIndex[msg.sender].push(sellerKey);
     }
 
+    // The seller calls this to accept a TradeOffer received from buyer
     function acceptTradeOffer(uint256 offerId) external {
+        require(!submissionsAllowed, "Submitting still active");
+        require(tradingAllowed, "Trading forbidden");
         bytes32 sellerKey = keccak256(
             abi.encodePacked(lastPeriodId, "_", msg.sender)
         );
@@ -569,18 +615,20 @@ contract Controller is Helpers {
         }
     }
 
-    function getTradeOffersForSeller(address seller)
+    /// Get single sellers trade offer
+    function getTradeOffersForSeller()
         public
         view
         returns (TradeOffer[] memory offers)
     {
         bytes32 sellerKey = keccak256(
-            abi.encodePacked(lastPeriodId, "_", seller)
+            abi.encodePacked(lastPeriodId, "_", msg.sender)
         );
 
         return tradeOffers[sellerKey];
     }
 
+    // Fetch all trae offers for a single buyer
     function getTradeOffersForBuyer()
         public
         view
@@ -635,12 +683,13 @@ contract Controller is Helpers {
         return buyerOffers;
     }
 
+    // The buyer calls this to pay for the accepted TradeOffer
     function payOffer(
         address seller,
         uint16 periodId,
         uint256 offerId
     ) external payable {
-        bytes32 sellerKey = keccak256(abi.encodePacked(periodId, "_", seller));
+        bytes32 sellerKey = keccak256(abi.encodePacked(periodId, "_", seller));v
 
         for (
             uint256 index = 0;
@@ -697,6 +746,7 @@ contract Controller is Helpers {
         );
     }
 
+    // Here we send the money we got from buyers to the seller and conclude the lifecycle
     function payOutPaidOffer(
         address seller,
         uint16 periodId,
@@ -745,8 +795,22 @@ contract Controller is Helpers {
         }
     }
 
-    function returnMarginToBuyer(address payable buyer) internal {
-        marginAmounts[buyer] = 0;
+    // This is a function to penalize buyers who made very large bids but failed to purchase
+    // although the price and quantity were in line with their demands. Prevents price manipulation
+    function marginToTreasury(address payable buyer) external onlyOwner {
+        if (marginAmounts[buyer] > 0) marginAmounts[buyer] = 0;
+
         buyer.transfer(marginAmounts[buyer]);
+    }
+
+    // Called at the end of a period as part of the reset for new period
+    function returnMarginToBuyers() external onlyEscrow {
+        for (uint256 index = 0; index < buyers.length; index++) {
+            address payable buyer = buyers[index];
+
+            if (marginAmounts[buyer] > 0) marginAmounts[buyer] = 0;
+
+            buyer.transfer(marginAmounts[buyer]);
+        }
     }
 }

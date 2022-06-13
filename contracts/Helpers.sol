@@ -4,11 +4,10 @@ import "./Types.sol";
 import "../node_modules/hardhat/console.sol";
 
 contract Helpers {
-    function arrayFindAddressIndex(address addr, address[] memory arr)
-        internal
-        pure
-        returns (bool found, uint256 index)
-    {
+    function arrayFindAddressIndex(
+        address payable addr,
+        address payable[] memory arr
+    ) internal pure returns (bool found, uint256 index) {
         for (uint256 i = 0; i < arr.length; i++) {
             if (arr[i] == addr) {
                 return (true, i);

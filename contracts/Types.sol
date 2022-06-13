@@ -14,7 +14,7 @@ struct ConstructorParams {
     address payable escrowWallet;
     Resource[] resources;
     address payable[] sellers;
-    address[] buyers;
+    address payable[] buyers;
 }
 /*
  * This is the basic resource

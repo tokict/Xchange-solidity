@@ -263,9 +263,8 @@ describe("Controller", async function () {
     // Send offer
     await buyer1Con.sendTradeOffer(0, 100, seller1.address);
     // Check if offer is registered
-    const offers: TradeOfferStruct[] = await seller1Con.getTradeOffersForSeller(
-      seller1.address
-    );
+    const offers: TradeOfferStruct[] =
+      await seller1Con.getTradeOffersForSeller();
     expect(offers).to.have.lengthOf(1);
     // Accept offer
 
@@ -273,7 +272,7 @@ describe("Controller", async function () {
 
     // Check state
     const offers2: TradeOfferStruct[] =
-      await seller1Con.getTradeOffersForSeller(seller1.address);
+      await seller1Con.getTradeOffersForSeller();
 
     expect(offers2[0].acceptedAt).not.to.equal(BigNumber.from("0"));
 

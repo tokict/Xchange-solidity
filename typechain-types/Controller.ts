@@ -253,6 +253,8 @@ export interface ControllerInterface extends utils.Interface {
     "setTreasury(address)": FunctionFragment;
     "submitAsk(uint16,uint32,uint32,uint16,uint256)": FunctionFragment;
     "submitBid(uint16,uint32,uint32,uint16,uint256)": FunctionFragment;
+    "toggleSubmissionPermission()": FunctionFragment;
+    "toggleTradingAllowed()": FunctionFragment;
     "tradeFee()": FunctionFragment;
     "tradeOffers(bytes32,uint256)": FunctionFragment;
     "treasuryWallet()": FunctionFragment;
@@ -295,6 +297,8 @@ export interface ControllerInterface extends utils.Interface {
       | "setTreasury"
       | "submitAsk"
       | "submitBid"
+      | "toggleSubmissionPermission"
+      | "toggleTradingAllowed"
       | "tradeFee"
       | "tradeOffers"
       | "treasuryWallet"
@@ -428,6 +432,14 @@ export interface ControllerInterface extends utils.Interface {
       BigNumberish
     ]
   ): string;
+  encodeFunctionData(
+    functionFragment: "toggleSubmissionPermission",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "toggleTradingAllowed",
+    values?: undefined
+  ): string;
   encodeFunctionData(functionFragment: "tradeFee", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "tradeOffers",
@@ -533,6 +545,14 @@ export interface ControllerInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "submitAsk", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "submitBid", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "toggleSubmissionPermission",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "toggleTradingAllowed",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "tradeFee", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "tradeOffers",
@@ -763,6 +783,14 @@ export interface Controller extends BaseContract {
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    toggleSubmissionPermission(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    toggleTradingAllowed(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     tradeFee(
       overrides?: CallOverrides
     ): Promise<
@@ -990,6 +1018,14 @@ export interface Controller extends BaseContract {
     overrides?: PayableOverrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  toggleSubmissionPermission(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  toggleTradingAllowed(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   tradeFee(
     overrides?: CallOverrides
   ): Promise<
@@ -1196,6 +1232,10 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
+    toggleSubmissionPermission(overrides?: CallOverrides): Promise<void>;
+
+    toggleTradingAllowed(overrides?: CallOverrides): Promise<void>;
+
     tradeFee(
       overrides?: CallOverrides
     ): Promise<
@@ -1393,6 +1433,14 @@ export interface Controller extends BaseContract {
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    toggleSubmissionPermission(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    toggleTradingAllowed(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     tradeFee(overrides?: CallOverrides): Promise<BigNumber>;
 
     tradeOffers(
@@ -1573,6 +1621,14 @@ export interface Controller extends BaseContract {
       purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    toggleSubmissionPermission(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    toggleTradingAllowed(
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     tradeFee(overrides?: CallOverrides): Promise<PopulatedTransaction>;
