@@ -94,7 +94,7 @@ async function submitAsk(
 
   const percentageFee = askPPU.mul(minUnits).mul(fees[0].percentage).div(10000);
 
-  await contract.submitAsk(resourceId, minUnits, maxUnits, 950, askPPU, {
+  await contract.submitAsk(resourceId, minUnits, maxUnits, askPPU, {
     value: percentageFee.add(fees[0].amount),
     gasLimit: 15000000,
   });
@@ -129,9 +129,10 @@ async function submitBid(
 
   const marginFeesArr: MarginFeeStruct[] = await connection.getMarginFees();
 
-  const margin: MarginFeeStruct | undefined = marginFeesArr.find(
-    (m) => m.percentOverMedian >= percentOver
+  const marginsFiltered: MarginFeeStruct[] = marginFeesArr.filter(
+    (m) => m.percentOverMedian <= percentOver
   );
+  const margin = marginsFiltered[marginsFiltered.length - 1];
 
   const marginFee =
     margin && margin.percentage > 0
@@ -139,7 +140,7 @@ async function submitBid(
       : 0;
 
   // Submit the bid
-  await connection.submitBid(resourceId, minUnits, maxUnits, 850, bidPPU, {
+  await connection.submitBid(resourceId, minUnits, maxUnits, bidPPU, {
     value: percentageFee.add(fees[0].amount).add(marginFee),
     gasLimit: 15000000,
   });
@@ -202,15 +203,16 @@ describe("Controller", async function () {
     // Check if the ask was saved
     expect(asks[0]).to.have.property("minUnits", minUnits);
     expect(asks[0]).to.have.property("maxUnits", maxUnits);
-    expect(asks[0]).to.have.property("purity", 950);
     expect(asks[0]).to.have.property("resourceId", 0);
     expect(asks[0]).to.have.property("asker", seller1.address.toString());
     expect(BigNumber.from(asks[0].askPPU)).to.be.equal(askPPU);
 
     // Check if we got fees
-    expect(await connected.provider.getBalance(treasury.address)).to.be.equal(
-      BigNumber.from("10000121000000000000000")
-    );
+    expect(
+      ethers.utils.formatEther(
+        await connected.provider.getBalance(treasury.address)
+      )
+    ).to.be.equal("10000.121");
   });
 
   it("BID1 - Should allow buyer to submit a BID during interval, apply proper fees", async function () {
@@ -229,19 +231,20 @@ describe("Controller", async function () {
     // Check if the bid was saved
     expect(bids[0]).to.have.property("minUnits", minUnits);
     expect(bids[0]).to.have.property("maxUnits", maxUnits);
-    expect(bids[0]).to.have.property("purity", 850);
     expect(bids[0]).to.have.property("resourceId", 0);
     expect(bids[0]).to.have.property("bidder", buyer1.address.toString());
     expect(BigNumber.from(bids[0].bidPPU)).to.be.equal(bidPPU);
 
     // Check if treasury got the fees
 
-    expect(await connected.provider.getBalance(treasury.address)).to.be.equal(
-      BigNumber.from("10000109000000000000000")
-    );
+    expect(
+      ethers.utils.formatEther(
+        await connected.provider.getBalance(treasury.address)
+      )
+    ).to.be.equal("10000.109");
   });
 
-  it("BID2 - Should calculate average price correctly, take agreements and accept pay", async function () {
+  it("FULL - Should calculate average price correctly, take agreements and accept pay", async function () {
     const {
       controller,
       buyer1,
@@ -285,13 +288,14 @@ describe("Controller", async function () {
       gasLimit: 30000000,
     });
 
+    // Calculation keys are made of periodId and resourceId composite
     const price = await seller1Con.priceCalculations(
       ethers.utils.keccak256(
         ethers.utils.solidityPack(["uint16", "string", "uint16"], [0, "_", 0])
       )
     );
 
-    expect(price).to.be.equal(BigNumber.from("182500000000000000"));
+    expect(ethers.utils.formatEther(price)).to.be.equal("0.1825");
 
     // Fails as trading is not open
     await expect(buyer1Con.sendTradeOffer(0, 100, seller1.address)).to.be
@@ -321,16 +325,20 @@ describe("Controller", async function () {
       await buyer1Con.getTradeOffersForBuyer();
     expect(buyerOffers).to.have.lengthOf(1);
 
+    // Get fee ad calculate amount to add to payment
     const fee: FeeStruct = await controller.tradeFee();
     const percentageFee = price
       .mul(buyerOffers[0].units)
       .mul(fee.percentage)
       .div(10000);
 
+    // Total expense: fees + cost of resource
     const totalToTransfer = price
       .mul(buyerOffers[0].units)
       .add(fee.amount)
       .add(percentageFee);
+
+    // Buyer pays into escrow
     await controller.payOffer(
       buyerOffers[0].seller,
       buyerOffers[0].periodId,
@@ -340,12 +348,15 @@ describe("Controller", async function () {
       }
     );
 
-    expect(await buyer1Con.provider.getBalance(escrow.address)).to.be.equal(
-      BigNumber.from("10018442500000000000000")
-    );
+    expect(
+      ethers.utils.formatEther(
+        await buyer1Con.provider.getBalance(escrow.address)
+      )
+    ).to.be.equal("10121.0425");
 
     await ownerCon.toggleTradingAllowed();
 
+    // Pay the seller from escrow
     await escrowCon.payOutPaidOffer(
       buyerOffers[0].seller,
       buyerOffers[0].periodId,
@@ -355,20 +366,22 @@ describe("Controller", async function () {
         gasLimit: 300000,
       }
     );
-    expect(await escrowCon.provider.getBalance(treasury.address)).to.be.equal(
-      BigNumber.from("10000915500000000000000")
-    );
-    expect(await escrowCon.provider.getBalance(seller1.address)).to.be.equal(
-      BigNumber.from("10018129526857463227215")
-    );
 
-    // ToDo: Test margin penalization
+    // Reset margin paid after payout
+    await escrowCon.zeroMargin(buyerOffers[0].buyer);
 
-    await escrowCon.marginToTreasury(buyer2.address);
+    expect(
+      ethers.utils.formatEther(
+        await escrowCon.provider.getBalance(treasury.address)
+      )
+    ).to.be.equal("10000.9155");
+    expect(
+      ethers.utils.formatEther(
+        await escrowCon.provider.getBalance(seller1.address)
+      )
+    ).to.be.equal("10018.129565473959388917");
 
     // Return all margins on end of trading period
-    await escrowCon.returnMarginToBuyers();
-
-    await ownerCon.toggleSubmissionPermission(true);
+    await escrowCon.resetMargins();
   });
 });

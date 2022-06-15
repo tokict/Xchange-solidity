@@ -114,7 +114,6 @@ export type ResourceAskStruct = {
   asker: string;
   minUnits: BigNumberish;
   maxUnits: BigNumberish;
-  purity: BigNumberish;
   askPPU: BigNumberish;
   appliedFeeIds: BigNumberish[];
 };
@@ -125,7 +124,6 @@ export type ResourceAskStructOutput = [
   string,
   number,
   number,
-  number,
   BigNumber,
   number[]
 ] & {
@@ -134,7 +132,6 @@ export type ResourceAskStructOutput = [
   asker: string;
   minUnits: number;
   maxUnits: number;
-  purity: number;
   askPPU: BigNumber;
   appliedFeeIds: number[];
 };
@@ -145,7 +142,6 @@ export type ResourceBidStruct = {
   resourceId: BigNumberish;
   minUnits: BigNumberish;
   maxUnits: BigNumberish;
-  purity: BigNumberish;
   bidPPU: BigNumberish;
   appliedFeeIds: BigNumberish[];
   marginFeeId: BigNumberish;
@@ -154,7 +150,6 @@ export type ResourceBidStruct = {
 export type ResourceBidStructOutput = [
   number,
   string,
-  number,
   number,
   number,
   number,
@@ -167,7 +162,6 @@ export type ResourceBidStructOutput = [
   resourceId: number;
   minUnits: number;
   maxUnits: number;
-  purity: number;
   bidPPU: BigNumber;
   appliedFeeIds: number[];
   marginFeeId: number;
@@ -225,7 +219,6 @@ export interface ControllerInterface extends utils.Interface {
     "lastPeriodId()": FunctionFragment;
     "marginAmounts(address)": FunctionFragment;
     "marginFees(uint256)": FunctionFragment;
-    "marginToTreasury(address)": FunctionFragment;
     "payOffer(address,uint16,uint256)": FunctionFragment;
     "payOutPaidOffer(address,uint16,uint16)": FunctionFragment;
     "pickFees(bool)": FunctionFragment;
@@ -233,19 +226,20 @@ export interface ControllerInterface extends utils.Interface {
     "priceCalculations(bytes32)": FunctionFragment;
     "removeBuyer(address)": FunctionFragment;
     "removeSeller(address)": FunctionFragment;
-    "returnMarginToBuyers()": FunctionFragment;
+    "resetMargins()": FunctionFragment;
     "sendToTreasury(uint256)": FunctionFragment;
     "sendTradeOffer(uint16,uint32,address)": FunctionFragment;
     "setEscrow(address)": FunctionFragment;
     "setOwner(address)": FunctionFragment;
     "setTreasury(address)": FunctionFragment;
-    "submitAsk(uint16,uint32,uint32,uint16,uint256)": FunctionFragment;
-    "submitBid(uint16,uint32,uint32,uint16,uint256)": FunctionFragment;
+    "submitAsk(uint16,uint32,uint32,uint256)": FunctionFragment;
+    "submitBid(uint16,uint32,uint32,uint256)": FunctionFragment;
     "toggleSubmissionPermission(bool)": FunctionFragment;
     "toggleTradingAllowed()": FunctionFragment;
     "tradeFee()": FunctionFragment;
     "tradeOffers(bytes32,uint256)": FunctionFragment;
     "treasuryWallet()": FunctionFragment;
+    "zeroMargin(address)": FunctionFragment;
   };
 
   getFunction(
@@ -269,7 +263,6 @@ export interface ControllerInterface extends utils.Interface {
       | "lastPeriodId"
       | "marginAmounts"
       | "marginFees"
-      | "marginToTreasury"
       | "payOffer"
       | "payOutPaidOffer"
       | "pickFees"
@@ -277,7 +270,7 @@ export interface ControllerInterface extends utils.Interface {
       | "priceCalculations"
       | "removeBuyer"
       | "removeSeller"
-      | "returnMarginToBuyers"
+      | "resetMargins"
       | "sendToTreasury"
       | "sendTradeOffer"
       | "setEscrow"
@@ -290,6 +283,7 @@ export interface ControllerInterface extends utils.Interface {
       | "tradeFee"
       | "tradeOffers"
       | "treasuryWallet"
+      | "zeroMargin"
   ): FunctionFragment;
 
   encodeFunctionData(
@@ -360,10 +354,6 @@ export interface ControllerInterface extends utils.Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "marginToTreasury",
-    values: [string]
-  ): string;
-  encodeFunctionData(
     functionFragment: "payOffer",
     values: [string, BigNumberish, BigNumberish]
   ): string;
@@ -386,7 +376,7 @@ export interface ControllerInterface extends utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(
-    functionFragment: "returnMarginToBuyers",
+    functionFragment: "resetMargins",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -402,23 +392,11 @@ export interface ControllerInterface extends utils.Interface {
   encodeFunctionData(functionFragment: "setTreasury", values: [string]): string;
   encodeFunctionData(
     functionFragment: "submitAsk",
-    values: [
-      BigNumberish,
-      BigNumberish,
-      BigNumberish,
-      BigNumberish,
-      BigNumberish
-    ]
+    values: [BigNumberish, BigNumberish, BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "submitBid",
-    values: [
-      BigNumberish,
-      BigNumberish,
-      BigNumberish,
-      BigNumberish,
-      BigNumberish
-    ]
+    values: [BigNumberish, BigNumberish, BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "toggleSubmissionPermission",
@@ -437,6 +415,7 @@ export interface ControllerInterface extends utils.Interface {
     functionFragment: "treasuryWallet",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "zeroMargin", values: [string]): string;
 
   decodeFunctionResult(
     functionFragment: "acceptTradeOffer",
@@ -487,10 +466,6 @@ export interface ControllerInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "marginFees", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "marginToTreasury",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "payOffer", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "payOutPaidOffer",
@@ -514,7 +489,7 @@ export interface ControllerInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "returnMarginToBuyers",
+    functionFragment: "resetMargins",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -550,6 +525,7 @@ export interface ControllerInterface extends utils.Interface {
     functionFragment: "treasuryWallet",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "zeroMargin", data: BytesLike): Result;
 
   events: {};
 }
@@ -684,11 +660,6 @@ export interface Controller extends BaseContract {
       }
     >;
 
-    marginToTreasury(
-      buyer: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     payOffer(
       seller: string,
       periodId: BigNumberish,
@@ -729,7 +700,7 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    returnMarginToBuyers(
+    resetMargins(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -764,7 +735,6 @@ export interface Controller extends BaseContract {
       resourceId: BigNumberish,
       minUnits: BigNumberish,
       maxUnits: BigNumberish,
-      purity: BigNumberish,
       askPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -773,7 +743,6 @@ export interface Controller extends BaseContract {
       resourceId: BigNumberish,
       minUnits: BigNumberish,
       maxUnits: BigNumberish,
-      purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -826,6 +795,11 @@ export interface Controller extends BaseContract {
     >;
 
     treasuryWallet(overrides?: CallOverrides): Promise<[string]>;
+
+    zeroMargin(
+      buyer: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
   };
 
   acceptTradeOffer(
@@ -922,11 +896,6 @@ export interface Controller extends BaseContract {
     }
   >;
 
-  marginToTreasury(
-    buyer: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   payOffer(
     seller: string,
     periodId: BigNumberish,
@@ -967,7 +936,7 @@ export interface Controller extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  returnMarginToBuyers(
+  resetMargins(
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -1002,7 +971,6 @@ export interface Controller extends BaseContract {
     resourceId: BigNumberish,
     minUnits: BigNumberish,
     maxUnits: BigNumberish,
-    purity: BigNumberish,
     askPPU: BigNumberish,
     overrides?: PayableOverrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -1011,7 +979,6 @@ export interface Controller extends BaseContract {
     resourceId: BigNumberish,
     minUnits: BigNumberish,
     maxUnits: BigNumberish,
-    purity: BigNumberish,
     bidPPU: BigNumberish,
     overrides?: PayableOverrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -1064,6 +1031,11 @@ export interface Controller extends BaseContract {
   >;
 
   treasuryWallet(overrides?: CallOverrides): Promise<string>;
+
+  zeroMargin(
+    buyer: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   callStatic: {
     acceptTradeOffer(
@@ -1152,8 +1124,6 @@ export interface Controller extends BaseContract {
       }
     >;
 
-    marginToTreasury(buyer: string, overrides?: CallOverrides): Promise<void>;
-
     payOffer(
       seller: string,
       periodId: BigNumberish,
@@ -1188,7 +1158,7 @@ export interface Controller extends BaseContract {
 
     removeSeller(seller: string, overrides?: CallOverrides): Promise<void>;
 
-    returnMarginToBuyers(overrides?: CallOverrides): Promise<void>;
+    resetMargins(overrides?: CallOverrides): Promise<void>;
 
     sendToTreasury(
       amount: BigNumberish,
@@ -1212,7 +1182,6 @@ export interface Controller extends BaseContract {
       resourceId: BigNumberish,
       minUnits: BigNumberish,
       maxUnits: BigNumberish,
-      purity: BigNumberish,
       askPPU: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
@@ -1221,7 +1190,6 @@ export interface Controller extends BaseContract {
       resourceId: BigNumberish,
       minUnits: BigNumberish,
       maxUnits: BigNumberish,
-      purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
@@ -1272,6 +1240,8 @@ export interface Controller extends BaseContract {
     >;
 
     treasuryWallet(overrides?: CallOverrides): Promise<string>;
+
+    zeroMargin(buyer: string, overrides?: CallOverrides): Promise<void>;
   };
 
   filters: {};
@@ -1339,11 +1309,6 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    marginToTreasury(
-      buyer: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     payOffer(
       seller: string,
       periodId: BigNumberish,
@@ -1381,7 +1346,7 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    returnMarginToBuyers(
+    resetMargins(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -1416,7 +1381,6 @@ export interface Controller extends BaseContract {
       resourceId: BigNumberish,
       minUnits: BigNumberish,
       maxUnits: BigNumberish,
-      purity: BigNumberish,
       askPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -1425,7 +1389,6 @@ export interface Controller extends BaseContract {
       resourceId: BigNumberish,
       minUnits: BigNumberish,
       maxUnits: BigNumberish,
-      purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -1448,6 +1411,11 @@ export interface Controller extends BaseContract {
     ): Promise<BigNumber>;
 
     treasuryWallet(overrides?: CallOverrides): Promise<BigNumber>;
+
+    zeroMargin(
+      buyer: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
   };
 
   populateTransaction: {
@@ -1526,11 +1494,6 @@ export interface Controller extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    marginToTreasury(
-      buyer: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     payOffer(
       seller: string,
       periodId: BigNumberish,
@@ -1571,7 +1534,7 @@ export interface Controller extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    returnMarginToBuyers(
+    resetMargins(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -1606,7 +1569,6 @@ export interface Controller extends BaseContract {
       resourceId: BigNumberish,
       minUnits: BigNumberish,
       maxUnits: BigNumberish,
-      purity: BigNumberish,
       askPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
@@ -1615,7 +1577,6 @@ export interface Controller extends BaseContract {
       resourceId: BigNumberish,
       minUnits: BigNumberish,
       maxUnits: BigNumberish,
-      purity: BigNumberish,
       bidPPU: BigNumberish,
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
@@ -1638,5 +1599,10 @@ export interface Controller extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     treasuryWallet(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    zeroMargin(
+      buyer: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
   };
 }

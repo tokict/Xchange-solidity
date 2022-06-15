@@ -270,10 +270,8 @@ contract Controller is Helpers {
         uint16 resourceId,
         uint32 minUnits,
         uint32 maxUnits,
-        uint16 purity,
         uint256 askPPU
     ) external payable onlyWhenSubmissions {
-        require(purity < 1000, "Invalid purity");
         require(minUnits > 0 && maxUnits > 0, "Invalid units");
         require(askPPU > 0, "Invalid ask PPU");
 
@@ -287,7 +285,6 @@ contract Controller is Helpers {
             asker: msg.sender,
             minUnits: minUnits,
             maxUnits: maxUnits,
-            purity: purity,
             askPPU: askPPU,
             appliedFeeIds: new uint16[](1)
         });
@@ -336,11 +333,13 @@ contract Controller is Helpers {
     {
         bytes32 key = createCalculationKey(resourceId, lastPeriodId);
         uint256 averageResurceBid = priceCalculations[key];
-        uint256 diff = averageResurceBid > 0
-            ? (averageResurceBid - PPU >= 0)
+
+        uint256 diff = 0;
+        if (averageResurceBid > 0) {
+            diff = averageResurceBid > PPU
                 ? averageResurceBid - PPU
-                : PPU - averageResurceBid
-            : 0;
+                : PPU - averageResurceBid;
+        }
 
         MarginFee[1] memory fees = [marginFees[0]];
         if (averageResurceBid > 0) {
@@ -365,11 +364,8 @@ contract Controller is Helpers {
         uint16 resourceId,
         uint32 minUnits,
         uint32 maxUnits,
-        uint16 purity,
         uint256 bidPPU
     ) external payable onlyWhenSubmissions {
-        require(purity < 1000, "Invalid purity");
-
         require(minUnits > 0 && maxUnits > 0, "Invalid units");
         require(bidPPU > 0, "Invalid ask PPU");
         require(
@@ -383,7 +379,6 @@ contract Controller is Helpers {
             bidder: msg.sender,
             minUnits: minUnits,
             maxUnits: maxUnits,
-            purity: purity,
             bidPPU: bidPPU,
             appliedFeeIds: new uint16[](1),
             marginFeeId: 0
@@ -395,7 +390,8 @@ contract Controller is Helpers {
         }
 
         uint256 feeAmount = 0;
-        MarginFee memory marginFee = pickMarginFee(bid.id, bid.bidPPU);
+        MarginFee memory marginFee = pickMarginFee(bid.resourceId, bid.bidPPU);
+
         bid.marginFeeId = marginFee.id;
         // Calculate margin and see if user has already enough on his address
         uint256 marginAmount = calculatePercentage(
@@ -771,17 +767,13 @@ contract Controller is Helpers {
         }
     }
 
-    // This is a function to penalize buyers who made very large bids but failed to purchase
-    // although the price and quantity were in line with their demands. Prevents price manipulation
-    function marginToTreasury(address payable buyer) external onlyEscrow {
-        console.log(marginAmounts[buyer]);
-        if (marginAmounts[buyer] > 0) marginAmounts[buyer] = 0;
-
-        buyer.transfer(marginAmounts[buyer]);
+    // Called after we used margin for payout
+    function zeroMargin(address buyer) public {
+        marginAmounts[buyer] = 0;
     }
 
-    // Called at the end of a period as part of the reset for new period
-    function returnMarginToBuyers() external onlyEscrow {
+    // Called at the end of a period as part of the reset for new period.
+    function resetMargins() external onlyEscrow {
         for (uint256 index = 0; index < buyers.length; index++) {
             address payable buyer = buyers[index];
 
