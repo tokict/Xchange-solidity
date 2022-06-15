@@ -6,10 +6,6 @@ struct ConstructorParams {
     Fee[] bidFees;
     Fee tradeFee;
     MarginFee[] marginFees;
-    uint8 numberOfPeriodsPerDay;
-    uint8 periodDurationInMinutes;
-    uint8 periodsStartHour;
-    uint8 periodsStartMinute;
     address payable treasuryWallet;
     address payable escrowWallet;
     Resource[] resources;
@@ -26,12 +22,6 @@ struct Resource {
     string measurementUnit;
 }
 
-struct Period {
-    uint16 id;
-    uint16 from;
-    bool closed;
-    uint16 to;
-}
 /*
  * This is the resource for sale from one user
  * 1 to many

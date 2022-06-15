@@ -66,4 +66,20 @@ contract Helpers {
     {
         return (theNumber * percentage) / 10000;
     }
+
+    function createCalculationKey(uint16 resourceId, uint16 periodId)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(periodId, "_", resourceId));
+    }
+
+    function createAddressKey(uint16 periodId, address addr)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(periodId, "_", addr));
+    }
 }

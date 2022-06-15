@@ -22,21 +22,8 @@ contract Controller is Helpers {
     // bidFee is applied to every submitted BID as tax
     Fee public tradeFee;
 
-    // PERIODS are time slots in which asks and bids can be submitted. After it expires, we make results public and open another round.
-    // Yes, I know its all public anyway.
-
-    //How many periods before trading starts
-    uint8 public numberOfPeriodsPerDay;
-    // How long should each period last
-    uint8 public periodDurationInMinutes;
-
     // The current state of margins
-    mapping(address => uint256) marginAmounts;
-
-    // What hour of the day to start period
-    uint8 public periodsStartHour;
-    // What minute in that hour to start the period
-    uint8 public periodsStartMinute;
+    mapping(address => uint256) public marginAmounts;
 
     uint16 public lastPeriodId;
 
@@ -84,10 +71,6 @@ contract Controller is Helpers {
     constructor(ConstructorParams memory params) {
         submissionsAllowed = false;
         tradingAllowed = false;
-        numberOfPeriodsPerDay = params.numberOfPeriodsPerDay;
-        periodDurationInMinutes = params.periodDurationInMinutes;
-        periodsStartHour = params.periodsStartHour;
-        periodsStartMinute = params.periodsStartMinute;
         treasuryWallet = params.treasuryWallet;
         escrowWallet = params.escrowWallet;
         lastPeriodId = 0;
@@ -165,6 +148,16 @@ contract Controller is Helpers {
         _;
     }
 
+    modifier onlyWhenSubmissions() {
+        require(submissionsAllowed, "Submissions not allowed");
+        _;
+    }
+
+    modifier onlyWhenTrading() {
+        require(tradingAllowed, "Trading not allowed");
+        _;
+    }
+
     function setOwner(address newOwner) external onlyOwner {
         owner = newOwner;
     }
@@ -177,12 +170,12 @@ contract Controller is Helpers {
         if (changePeriodId) {
             lastPeriodId++;
         }
-        submissionsAllowed = true;
+        submissionsAllowed = submissionsAllowed ? false : true;
     }
 
     // Turn trading on or off
     function toggleTradingAllowed() external onlyOwner {
-        tradingAllowed = true;
+        tradingAllowed = tradingAllowed ? false : true;
     }
 
     function getResources()
@@ -279,8 +272,7 @@ contract Controller is Helpers {
         uint32 maxUnits,
         uint16 purity,
         uint256 askPPU
-    ) external payable {
-        require(submissionsAllowed, "Submitting forbidden");
+    ) external payable onlyWhenSubmissions {
         require(purity < 1000, "Invalid purity");
         require(minUnits > 0 && maxUnits > 0, "Invalid units");
         require(askPPU > 0, "Invalid ask PPU");
@@ -339,23 +331,27 @@ contract Controller is Helpers {
      */
     function pickMarginFee(uint16 resourceId, uint256 PPU)
         public
+        view
         returns (MarginFee memory fee)
     {
-        uint256 averageResurceBid = calculatePrice(resourceId, true);
-
+        bytes32 key = createCalculationKey(resourceId, lastPeriodId);
+        uint256 averageResurceBid = priceCalculations[key];
         uint256 diff = averageResurceBid > 0
             ? (averageResurceBid - PPU >= 0)
                 ? averageResurceBid - PPU
                 : PPU - averageResurceBid
             : 0;
 
-        uint256 percentOver = diff > 0 ? (diff / averageResurceBid) * 100 : 0;
+        MarginFee[1] memory fees = [marginFees[0]];
+        if (averageResurceBid > 0) {
+            uint256 percentOver = diff > 0
+                ? (diff / averageResurceBid) * 100
+                : 0;
 
-        MarginFee[] memory fees = new MarginFee[](1);
-
-        for (uint256 index = 0; index < marginFees.length; index++) {
-            if (marginFees[index].percentOverMedian <= percentOver) {
-                fees[0] = marginFees[index];
+            for (uint256 index = 0; index < marginFees.length; index++) {
+                if (marginFees[index].percentOverMedian <= percentOver) {
+                    fees[0] = marginFees[index];
+                }
             }
         }
 
@@ -371,9 +367,9 @@ contract Controller is Helpers {
         uint32 maxUnits,
         uint16 purity,
         uint256 bidPPU
-    ) external payable {
+    ) external payable onlyWhenSubmissions {
         require(purity < 1000, "Invalid purity");
-        require(submissionsAllowed, "Submitting forbidden");
+
         require(minUnits > 0 && maxUnits > 0, "Invalid units");
         require(bidPPU > 0, "Invalid ask PPU");
         require(
@@ -462,11 +458,7 @@ contract Controller is Helpers {
     }
 
     /** Calculate average price for all resources in last period */
-    function calculatePrice(uint16 resourceId, bool single)
-        public
-        returns (uint256 price)
-    {
-        require(!submissionsAllowed, "Submitting still open");
+    function calculatePrice() public {
         require(!tradingAllowed, "Cannot calculate while trading");
         // Array index corresponds to resource id
         uint256[] memory averageResourceAskPPU = new uint256[](
@@ -549,21 +541,12 @@ contract Controller is Helpers {
 
                 uint256 averagePrice = (avgAskPPU + avgBidPPU) / 2;
                 // If there is resourceId, it means we just need currewnt price or a specific resource
-                if (single) {
-                    return index6 == resourceId ? averagePrice : 0;
-                } else {
-                    if (averagePrice > 0) {
-                        priceCalculations[
-                            keccak256(
-                                abi.encodePacked(lastPeriodId, "_", index6)
-                            )
-                        ] = averagePrice;
-                    }
-                }
+
+                bytes32 key = createCalculationKey(index6, lastPeriodId);
+
+                priceCalculations[key] = averagePrice;
             }
         }
-
-        return 0;
     }
 
     // Buyer calls to offer a trade on the calculated price for a resource
@@ -571,9 +554,8 @@ contract Controller is Helpers {
         uint16 resourceId,
         uint32 units,
         address payable seller
-    ) external {
+    ) external onlyWhenTrading {
         require(!submissionsAllowed, "Submitting is still allowed");
-        require(tradingAllowed, "Trading forbidden");
 
         bytes32 sellerKey = keccak256(
             abi.encodePacked(lastPeriodId, "_", seller)
@@ -597,12 +579,10 @@ contract Controller is Helpers {
     }
 
     // The seller calls this to accept a TradeOffer received from buyer
-    function acceptTradeOffer(uint256 offerId) external {
+    function acceptTradeOffer(uint256 offerId) external onlyWhenTrading {
         require(!submissionsAllowed, "Submitting still active");
-        require(tradingAllowed, "Trading forbidden");
-        bytes32 sellerKey = keccak256(
-            abi.encodePacked(lastPeriodId, "_", msg.sender)
-        );
+
+        bytes32 sellerKey = createAddressKey(lastPeriodId, msg.sender);
 
         for (
             uint256 index = 0;
@@ -621,9 +601,7 @@ contract Controller is Helpers {
         view
         returns (TradeOffer[] memory offers)
     {
-        bytes32 sellerKey = keccak256(
-            abi.encodePacked(lastPeriodId, "_", msg.sender)
-        );
+        bytes32 sellerKey = createAddressKey(lastPeriodId, msg.sender);
 
         return tradeOffers[sellerKey];
     }
@@ -689,7 +667,7 @@ contract Controller is Helpers {
         uint16 periodId,
         uint256 offerId
     ) external payable {
-        bytes32 sellerKey = keccak256(abi.encodePacked(periodId, "_", seller));v
+        bytes32 sellerKey = createAddressKey(periodId, seller);
 
         for (
             uint256 index = 0;
@@ -752,7 +730,7 @@ contract Controller is Helpers {
         uint16 periodId,
         uint16 offerId
     ) external payable onlyEscrow {
-        bytes32 sellerKey = keccak256(abi.encodePacked(periodId, "_", seller));
+        bytes32 sellerKey = createAddressKey(periodId, seller);
 
         for (
             uint256 index = 0;
@@ -762,9 +740,7 @@ contract Controller is Helpers {
             TradeOffer memory offer = tradeOffers[sellerKey][index];
             if (offer.id == offerId) {
                 uint256 PPU = priceCalculations[
-                    keccak256(
-                        abi.encodePacked(offer.periodId, "_", offer.resourceId)
-                    )
+                    createCalculationKey(offer.resourceId, offer.periodId)
                 ];
 
                 // Buyer pays seller ask and our trade fee which we send to treasury
@@ -797,7 +773,8 @@ contract Controller is Helpers {
 
     // This is a function to penalize buyers who made very large bids but failed to purchase
     // although the price and quantity were in line with their demands. Prevents price manipulation
-    function marginToTreasury(address payable buyer) external onlyOwner {
+    function marginToTreasury(address payable buyer) external onlyEscrow {
+        console.log(marginAmounts[buyer]);
         if (marginAmounts[buyer] > 0) marginAmounts[buyer] = 0;
 
         buyer.transfer(marginAmounts[buyer]);
@@ -812,5 +789,9 @@ contract Controller is Helpers {
 
             buyer.transfer(marginAmounts[buyer]);
         }
+    }
+
+    function getMarginFees() external view returns (MarginFee[] memory fees) {
+        return marginFees;
     }
 }

@@ -36,10 +36,9 @@ async function main() {
       },
     ],
     marginFees: [
-      {
-        id: 1,
-        percentage: 100,
-      },
+      { id: 1, percentOverMedian: 0, percentage: 0 },
+      { id: 2, percentOverMedian: 25, percentage: 5000 },
+      { id: 3, percentOverMedian: 50, percentage: 30000 },
     ],
     numberOfPeriodsPerDay: 2,
     periodDurationInMinutes: 0,
