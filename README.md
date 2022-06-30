@@ -23,9 +23,6 @@ If the offer is accepted by seller, the buyer needs to pay the amount into an es
 Once delivery has been made, the escrow calls a payout function and pays seller.
 
 N.B: If the buyer puts up a very high price, not in line with other buyers, he needs to put up a margin. If he has bid with a high price and the median price is lower than his bid and there are enough quantities, he needs to make an offer. If he does not make an offer or pay an accepted offer, he loses his paid margin as penalty. This is to prevent price manipulation via ake hihg bids.
-# Contents
-- ***./solidity*** *(Standalone hardhat project with all ready to go for deployment, including tests)*
-- ***./rust*** *(Same like solidity dir but in Rust)*
 
 
 ### The basic contract flow looks like this:
