@@ -1,8 +1,8 @@
 # Example Marketplace Project (Solidity)
 
-This project demonstrates how a marketplace could be implemented in Solidity and Rust (Near).
+This project demonstrates how a marketplace could be implemented in Solidity.
 
-It is a fully working and usable piece of software but with basic features. Due to feature parity between languages and because Solidity is not fit for projects like this, the Rust part is also made feature scarce.
+It is a fully working and usable piece of software but with basic features.
 
 The project comes with everything ready to go and just needs deploying via scripts and it's ready for use or to be a template for your project. You can set up your own fees and margin rules
 
