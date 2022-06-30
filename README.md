@@ -1,4 +1,4 @@
-# Example Marketplace Project (Solidity, Rust (Near))
+# Example Marketplace Project (Solidity)
 
 This project demonstrates how a marketplace could be implemented in Solidity and Rust (Near).
 
