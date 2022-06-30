@@ -5,7 +5,7 @@ import "../node_modules/hardhat/console.sol";
 import "./Types.sol";
 import "./Helpers.sol";
 
-contract Controller is Helpers {
+contract Platform is Helpers {
     // Can BIDS and ASKS be submitted
     bool private submissionsAllowed;
 
@@ -36,8 +36,6 @@ contract Controller is Helpers {
     //Array or enabled resources to trade
     Resource[] internal resources;
 
-    IncomingTradePayment[] internal incomingPayments;
-
     // Resource asks from sellers
     mapping(uint16 => ResourceAsk[]) internal resourceAsks;
 
@@ -45,7 +43,7 @@ contract Controller is Helpers {
     mapping(uint16 => ResourceBid[]) internal resourceBids;
 
     // Incoming payments from buyers
-    mapping(uint16 => IncomingTradePayment[]) internal incomingTradePayments;
+    IncomingTradePayment[] internal incomingPayments;
 
     // Trade offers from buyers
     mapping(bytes32 => TradeOffer[]) public tradeOffers;

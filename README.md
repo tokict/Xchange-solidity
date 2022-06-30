@@ -1,46 +1,41 @@
-# Advanced Sample Hardhat Project
+# Example Marketplace Project (Solidity, Rust (Near))
 
-This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
+This project demonstrates how a marketplace could be implemented in Solidity and Rust (Near).
 
-The project comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts. It also comes with a variety of other tools, preconfigured to work with the project code.
+It is a fully working and usable piece of software but with basic features. Due to feature parity between languages and because Solidity is not fit for projects like this, the Rust part is also made feature scarce.
 
-Try running some of the following tasks:
+The project comes with everything ready to go and just needs deploying via scripts and it's ready for use or to be a template for your project. You can set up your own fees and margin rules
 
-```shell
-npx hardhat accounts
-npx hardhat compile
-npx hardhat clean
-npx hardhat test
-npx hardhat node
-npx hardhat help
-REPORT_GAS=true npx hardhat test
-npx hardhat coverage
-npx hardhat run scripts/deploy.ts
-TS_NODE_FILES=true npx ts-node scripts/deploy.ts
-npx eslint '**/*.{js,ts}'
-npx eslint '**/*.{js,ts}' --fix
-npx prettier '**/*.{json,sol,md}' --check
-npx prettier '**/*.{json,sol,md}' --write
-npx solhint 'contracts/**/*.sol'
-npx solhint 'contracts/**/*.sol' --fix
-```
 
-# Etherscan verification
 
-To try out Etherscan verification, you first need to deploy a contract to an Ethereum network that's supported by Etherscan, such as Ropsten.
 
-In this project, copy the .env.example file to a file named .env, and then edit it to fill in the details. Enter your Etherscan API key, your Ropsten node URL (eg from Alchemy), and the private key of the account which will send the deployment transaction. With a valid .env file in place, first deploy your contract:
+# What does it do?
+This marketplace enables buyers and sellers to put up BIDs and ASKs for specific resources (in this case, minerals or gases) within an arbitrary submission period.
 
-```shell
-hardhat run --network ropsten scripts/deploy.ts
-```
+The Bids and ASKs are visible to all and everyone can update theirs.
 
-Then, copy the deployment address and paste it in to replace `DEPLOYED_CONTRACT_ADDRESS` in this command:
+Once the submission period is done, we calculate the median price and open trading period.
 
-```shell
-npx hardhat verify --network ropsten DEPLOYED_CONTRACT_ADDRESS "Hello, Hardhat!"
-```
+In trading period, the buyers send trade offers to sellers based on median price, but specifiying quantity.
 
-# Performance optimizations
+If the offer is accepted by seller, the buyer needs to pay the amount into an escrow account.
 
-For faster runs of your tests and scripts, consider skipping ts-node's type checking by setting the environment variable `TS_NODE_TRANSPILE_ONLY` to `1` in hardhat's environment. For more details see [the documentation](https://hardhat.org/guides/typescript.html#performance-optimizations).
+Once delivery has been made, the escrow calls a payout function and pays seller.
+
+N.B: If the buyer puts up a very high price, not in line with other buyers, he needs to put up a margin. If he has bid with a high price and the median price is lower than his bid and there are enough quantities, he needs to make an offer. If he does not make an offer or pay an accepted offer, he loses his paid margin as penalty. This is to prevent price manipulation via ake hihg bids.
+# Contents
+- ***./solidity*** *(Standalone hardhat project with all ready to go for deployment, including tests)*
+- ***./rust*** *(Same like solidity dir but in Rust)*
+
+
+### The basic contract flow looks like this:
+
+<img src="https://static.swimlanes.io/6b89a563edb664dade74e99ea0109761.png"/>
+
+### A bit more detailed Seller flow:
+
+
+<img src="https://static.swimlanes.io/ebda7711da0c2deee5a91923e34433d2.png"/>
+
+### And buyer flow:
+<img src="https://static.swimlanes.io/b695016110763e8d81cf64f06399f85d.png"/>
